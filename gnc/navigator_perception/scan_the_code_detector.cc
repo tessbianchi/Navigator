@@ -18,7 +18,7 @@ try :
         log_msg << "\nInitializing ScanTheCodeDetector:\n";
         int tab_sz = 4;
 
-        Model model = Model(.1905,.381,4);
+        Model model = Model(.1905,.4, 4);
         model_fitter = new StereoModelFitter(model, debug_image_pub);
 
         // Start main detector loop
@@ -48,15 +48,13 @@ void ScanTheCodeDetector::validate_pictures(Mat& current_image_left, Mat& curren
         Mat& processing_size_image_left, Mat& processing_size_image_right
                                            )
 {
-
     // Prevent segfault if service is called before we get valid img_msg_ptr's
-    if (model_fitter->left_most_recent.image_msg_ptr == NULL || model_fitter->right_most_recent.image_msg_ptr == NULL)
+    if (left_most_recent.image_msg_ptr == NULL || right_most_recent.image_msg_ptr == NULL)
         {
             ROS_WARN("Torpedo Board Detector: Image Pointers are NULL.");
             throw "ROS ERROR";
         }
     double sync_thresh = 0.5;
-
     // Get the most recent frames and camera info for both cameras
     cv_bridge::CvImagePtr input_bridge;
     try
@@ -67,13 +65,13 @@ void ScanTheCodeDetector::validate_pictures(Mat& current_image_left, Mat& curren
 
             Matx34d left_cam_mat = left_cam_model.fullProjectionMatrix();
 
-            cout << "A = "<< endl << " "  << left_cam_mat << endl << endl;
+            //cout << "A = "<< endl << " "  << left_cam_mat << endl << endl;
 
             // Left Camera
-            input_bridge = cv_bridge::toCvCopy(model_fitter->left_most_recent.image_msg_ptr,
+            input_bridge = cv_bridge::toCvCopy(left_most_recent.image_msg_ptr,
                                                sensor_msgs::image_encodings::BGR8);
             current_image_left = input_bridge->image;
-            left_cam_model.fromCameraInfo(model_fitter->left_most_recent.info_msg_ptr);
+            left_cam_model.fromCameraInfo(left_most_recent.info_msg_ptr);
             resize(current_image_left, processing_size_image_left, Size(0, 0),
                    image_proc_scale, image_proc_scale);
             if (current_image_left.channels() != 3)
@@ -83,10 +81,10 @@ void ScanTheCodeDetector::validate_pictures(Mat& current_image_left, Mat& curren
                 }
 
             // Right Camera
-            input_bridge = cv_bridge::toCvCopy(model_fitter->right_most_recent.image_msg_ptr,
+            input_bridge = cv_bridge::toCvCopy(right_most_recent.image_msg_ptr,
                                                sensor_msgs::image_encodings::BGR8);
             current_image_right = input_bridge->image;
-            right_cam_model.fromCameraInfo(model_fitter->right_most_recent.info_msg_ptr);
+            right_cam_model.fromCameraInfo(right_most_recent.info_msg_ptr);
             resize(current_image_right, processing_size_image_right, Size(0, 0),
                    image_proc_scale, image_proc_scale);
             if (current_image_right.channels() != 3)
@@ -109,8 +107,8 @@ void ScanTheCodeDetector::validate_pictures(Mat& current_image_left, Mat& curren
 
     // Enforce approximate image synchronization
     double left_stamp, right_stamp;
-    left_stamp = model_fitter->left_most_recent.image_msg_ptr->header.stamp.toSec();
-    right_stamp = model_fitter->right_most_recent.image_msg_ptr->header.stamp.toSec();
+    left_stamp = left_most_recent.image_msg_ptr->header.stamp.toSec();
+    right_stamp = right_most_recent.image_msg_ptr->header.stamp.toSec();
     double sync_error = fabs(left_stamp - right_stamp);
     stringstream sync_msg;
     sync_msg << "Left and right images were not sufficiently synchronized"
@@ -238,6 +236,7 @@ void ScanTheCodeDetector::process_current_image()
     Mat current_image_left, current_image_right, processing_size_image_left,
         processing_size_image_right;
 
+
     try
         {
             validate_pictures(current_image_left, current_image_right,
@@ -248,8 +247,10 @@ void ScanTheCodeDetector::process_current_image()
             return;
         }
 
-    Matx34d left_cam_mat = this->left_cam_model.fullProjectionMatrix();
+    Matx34d left_cam_mat = left_cam_model.fullProjectionMatrix();
     Matx34d  right_cam_mat = right_cam_model.fullProjectionMatrix();
+
+
 
     bool ret = model_fitter->determine_model_position(position,
                max_features, feature_block_size,
@@ -282,8 +283,8 @@ void ScanTheCodeDetector::left_image_callback(
     const sensor_msgs::CameraInfoConstPtr &info_msg_ptr)
 {
     left_mtx.lock();
-    model_fitter->left_most_recent.image_msg_ptr = image_msg_ptr;
-    model_fitter->left_most_recent.info_msg_ptr = info_msg_ptr;
+    left_most_recent.image_msg_ptr = image_msg_ptr;
+    left_most_recent.info_msg_ptr = info_msg_ptr;
     left_mtx.unlock();
 }
 
@@ -292,8 +293,8 @@ void ScanTheCodeDetector::right_image_callback(
     const sensor_msgs::CameraInfoConstPtr &info_msg_ptr)
 {
     right_mtx.lock();
-    model_fitter->right_most_recent.image_msg_ptr = image_msg_ptr;
-    model_fitter->right_most_recent.info_msg_ptr = info_msg_ptr;
+    right_most_recent.image_msg_ptr = image_msg_ptr;
+    right_most_recent.info_msg_ptr = info_msg_ptr;
     right_mtx.unlock();
 }
 
