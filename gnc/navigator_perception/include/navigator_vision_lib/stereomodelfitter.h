@@ -30,6 +30,8 @@
 #include <navigator_vision_lib/model.h>
 
 using namespace cv;
+using namespace std;
+
 
 class StereoModelFitter
 {
@@ -46,11 +48,11 @@ public:
 
 protected:
     void visualize_points(std::vector<Eigen::Vector3d>  feature_pts_3d, Mat& current_image_left);
-    void check_for_model(double& curr_min_cost, int& curr_min_cost_idx, vector<Eigen::Vector3d> feature_pts_3d, vector< vector<uint8_t> >& four_pt_combo_idxs);
-    void calculate_3D_reconstruction(std::vector<Eigen::Vector3d>& feature_pts_3d, vector<int> correspondence_pair_idxs, vector<Point> features_l,
+    void check_for_model(double& curr_min_cost, int& curr_min_cost_idx, std::vector<Eigen::Vector3d> feature_pts_3d, std::vector< vector<uint8_t> >& four_pt_combo_idxs);
+    void calculate_3D_reconstruction(std::vector<Eigen::Vector3d>& feature_pts_3d, vector<int> correspondence_pair_idxs, std::vector<Point> features_l,
                                     vector<Point> features_r);
-    void get_corresponding_pairs(std::vector<int>& correspondence_pair_idxs,  vector<Point> features_l,
-                                 vector<Point> features_r, int picture_width);
+    void get_corresponding_pairs(std::vector<int>& correspondence_pair_idxs,  std::vector<Point> features_l,
+                                 std::vector<Point> features_r, int picture_width);
     void extract_features(std::vector<Point> & features, Mat& image, int max_corners, int block_size, double quality_level, double min_distance);
     void denoise_images(Mat& l_diffused, Mat& r_diffused, int diffusion_time, Mat current_image_left,
                         Mat current_image_right);
@@ -68,5 +70,5 @@ void combinations(uint8_t n, uint8_t k, std::vector< std::vector<uint8_t> > &idx
 // Edge preserving image denoising
 void anisotropic_diffusion(const cv::Mat &src, cv::Mat &dest, int t_max);
 
-void _increase_elements_after_level(vector<uint8_t> comb, vector< vector<uint8_t> > &comb_array,
+void _increase_elements_after_level(std::vector<uint8_t> comb, std::vector< std::vector<uint8_t> > &comb_array,
                                    uint8_t n, uint8_t k, uint8_t level);
