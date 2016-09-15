@@ -4,48 +4,48 @@ using namespace std;
 using namespace cv;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-// Class: ScanTheCodeDetector ////////////////////////////////////////////////////////////////
+// Class: StereoShapeDetector ////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-ScanTheCodeDetector::ScanTheCodeDetector()
+StereoShapeDetector::StereoShapeDetector()
 try :
-    image_transport(nh),   rviz("/scan_the_code/visualization/detection")
+    image_transport(nh),   rviz("/stereo_shape_detector/visualization/detection")
     {
 
         stringstream log_msg;
         init_ros(log_msg);
 
-        log_msg << "\nInitializing ScanTheCodeDetector:\n";
+        log_msg << "\nInitializing StereoShapeDetector:\n";
         int tab_sz = 4;
 
         PerceptionModel model = PerceptionModel(.1905,.381,4);
-        model_fitter = new StereoModelFitter(model, debug_image_pub);
+        model_fitter = new StereoModelFitter(model);
         object_tracker = new ObjectTracker();
         color_tracker = new ColorTracker();
         // Start main detector loop
         run_id = 0;
 
-        boost::thread main_loop_thread(boost::bind(&ScanTheCodeDetector::run, this));
+        boost::thread main_loop_thread(boost::bind(&StereoShapeDetector::run, this));
         main_loop_thread.detach();
         log_msg << setw(1 * tab_sz) << "" << "Running main detector loop in a background thread\n";
 
-        log_msg << "ScanTheCodeDetector Initialized\n";
+        log_msg << "StereoShapeDetector Initialized\n";
         ROS_INFO(log_msg.str().c_str());
 
     }
 catch (const exception &e)
     {
-        ROS_ERROR("Exception from within ScanTheCodeDetector constructor "
+        ROS_ERROR("Exception from within StereoShapeDetector constructor "
                   "initializer list: ");
         ROS_ERROR(e.what());
     }
 
-ScanTheCodeDetector::~ScanTheCodeDetector()
+StereoShapeDetector::~StereoShapeDetector()
 {
-    ROS_INFO("Killed Torpedo Board Detector");
+    ROS_INFO("Killed Stereo Shape Detector");
 }
 
-void ScanTheCodeDetector::validate_frame(Mat& current_image_left, Mat& current_image_right,
+void StereoShapeDetector::validate_frame(Mat& current_image_left, Mat& current_image_right,
         Mat& processing_size_image_left, Mat& processing_size_image_right
                                            )
 {
@@ -95,7 +95,7 @@ void ScanTheCodeDetector::validate_frame(Mat& current_image_left, Mat& current_i
         }
     catch (const exception &ex)
         {
-            ROS_ERROR("[scan_the_code] cv_bridge: Failed to convert images");
+            ROS_ERROR("[stereo_shape_detector] cv_bridge: Failed to convert images");
             left_mtx.unlock();
             right_mtx.unlock();
             throw "ROS ERROR";
@@ -116,102 +116,67 @@ void ScanTheCodeDetector::validate_frame(Mat& current_image_left, Mat& current_i
         }
 }
 
-void ScanTheCodeDetector::init_ros(stringstream& log_msg)
+void StereoShapeDetector::init_ros(stringstream& log_msg)
 {
     using ros::param::param;
     int tab_sz = 4;
     // Default parameters
     string img_topic_left_default = "/stereo/left/image_rect_color/";
     string img_topic_right_default = "/stereo/right/image_rect_color/";
-    string activation_default = "/scan_the_code/detection_activation_switch";
-    string dbg_topic_default = "/scan_the_code/dbg_imgs";
-    string pose_est_srv_default = "/scan_the_code/pose_est_srv";
+    string activation_default = "/stereo_shape_detector/activation_switch";
     float image_proc_scale_default = 0.5;
     int diffusion_time_default = 5;
     int max_features_default = 35;
     int feature_block_size_default = 11;
     float feature_min_distance_default = 15.0;
-    bool generate_dbg_img_default = true;
-    int frame_height_default = 644;
-    int frame_width_default = 482;
-
 
 
     // Set image processing scale
-    image_proc_scale = param<float>("/scan_the_code_vision/img_proc_scale", image_proc_scale_default);
+    image_proc_scale = param<float>("/stereo_shape_detector/img_proc_scale", image_proc_scale_default);
     log_msg << setw(1 * tab_sz) << "" << "Image Processing Scale: \x1b[37m"
             << image_proc_scale << "\x1b[0m\n";
 
     // Set diffusion duration in pseudotime
-    diffusion_time = param<int>("/scan_the_code_vision/diffusion_time", diffusion_time_default);
+    diffusion_time = param<int>("/stereo_shape_detector/diffusion_time", diffusion_time_default);
     log_msg << setw(1 * tab_sz) << "" << "Anisotropic Diffusion Duration: \x1b[37m"
             << diffusion_time << "\x1b[0m\n";
 
     // Set feature extraction parameters
-    max_features = param<int>("/scan_the_code_vision/max_features", max_features_default);
+    max_features = param<int>("/stereo_shape_detector/max_features", max_features_default);
     log_msg << setw(1 * tab_sz) << "" << "Maximum features: \x1b[37m"
             << max_features << "\x1b[0m\n";
-    feature_block_size = param<int>("/scan_the_code_vision/feature_block_size",
+    feature_block_size = param<int>("/stereo_shape_detector/feature_block_size",
                                     feature_block_size_default);
     log_msg << setw(1 * tab_sz) << "" << "Feature Block Size: \x1b[37m"
             << feature_block_size << "\x1b[0m\n";
-    feature_min_distance = param<float>("/scan_the_code_vision/feature_min_distance",
+    feature_min_distance = param<float>("/stereo_shape_detector/feature_min_distance",
                                         feature_min_distance_default);
     log_msg << setw(1 * tab_sz) << "" << "Feature Minimum Distance: \x1b[37m"
             << feature_min_distance << "\x1b[0m\n";
 
-    // Configure debug image generation
-    generate_dbg_img = param<bool>("/scan_the_code_vision/generate_dbg_imgs", generate_dbg_img_default);
-
     // Subscribe to Cameras (image + camera_info)
-    string left = param<string>("/scan_the_code_vision/input_left", img_topic_left_default);
-    string right = param<string>("/scan_the_code_vision/input_right", img_topic_right_default);
+    string left = param<string>("/stereo_shape_detector/input_left", img_topic_left_default);
+    string right = param<string>("/stereo_shape_detector/input_right", img_topic_right_default);
     left_image_sub = image_transport.subscribeCamera(
-                         left, 10, &ScanTheCodeDetector::left_image_callback, this);
+                         left, 10, &StereoShapeDetector::left_image_callback, this);
     right_image_sub = image_transport.subscribeCamera(
-                          right, 10, &ScanTheCodeDetector::right_image_callback, this);
+                          right, 10, &StereoShapeDetector::right_image_callback, this);
     log_msg << setw(1 * tab_sz) << "" << "Camera Subscriptions:\x1b[37m\n"
             << setw(2 * tab_sz) << "" << "left  = " << left << endl
             << setw(2 * tab_sz) << "" << "right = " << right << "\x1b[0m\n";
 
-    // Register Pose Estimation Service Client
-    string pose_est_srv = param<string>("/scan_the_code_vision/pose_est_srv", pose_est_srv_default);
-    pose_client = nh.serviceClient<sub8_msgs::TorpBoardPoseRequest>( pose_est_srv);
-    log_msg
-            << setw(1 * tab_sz) << "" << "Registered as client of the service:\n"
-            << setw(2 * tab_sz) << "" << "\x1b[37m" << pose_est_srv << "\x1b[0m\n";
 
-    // Advertise debug image topic
-    string dbg_topic = param<string>("/scan_the_code_vision/dbg_imgs", dbg_topic_default);
-    debug_image_pub = image_transport.advertise(dbg_topic, 1, true);
-    log_msg << setw(1 * tab_sz) << "" << "Advertised debug image topic:\n"
-            << setw(2 * tab_sz) << "" << "\x1b[37m" << dbg_topic << "\x1b[0m\n";
-
-    // Setup debug image quadrants
-    int frame_height = param<int>("/scan_the_code_vision/frame_height", frame_height_default);
-    int frame_width = param<int>("/scan_the_code_vision/frame_width", frame_width_default);
-    Size input_frame_size(frame_height, frame_width);  // This needs to be changed if we ever change
-    // the camera settings for frame size
-    Size proc_size(cvRound(image_proc_scale * input_frame_size.width),
-                   cvRound(image_proc_scale * input_frame_size.height));
-    Size dbg_img_size(proc_size.width * 2, proc_size.height * 2);
-    debug_image = Mat(dbg_img_size, CV_8UC3, Scalar(0, 0, 0));
-    upper_left = Rect(Point(0, 0), proc_size);
-    upper_right = Rect(Point(proc_size.width, 0), proc_size);
-    lower_left = Rect(Point(0, proc_size.height), proc_size);
-    lower_right = Rect(Point(proc_size.width, proc_size.height), proc_size);
-    // Advertise detection activation switch
     active = false;
-    string activation = param<string>("/scan_the_code_vision/activation", activation_default);
+    string activation = param<string>("/stereo_shape_detector/activation", activation_default);
     detection_switch = nh.advertiseService(
-                           activation, &ScanTheCodeDetector::detection_activation_switch, this);
+                           activation, &StereoShapeDetector::detection_activation_switch, this);
     log_msg
-            << setw(1 * tab_sz) << "" << "Advertised scan_the_code board detection switch:\n"
+            << setw(1 * tab_sz) << "" << "Advertised stereo shape detector board detection switch:\n"
             << setw(2 * tab_sz) << "" << "\x1b[37m" << activation << "\x1b[0m\n";
 }
 
 
-void ScanTheCodeDetector::run()
+void StereoShapeDetector::run()
 {
     ros::Rate loop_rate(10);  // process images 10 times per second
     while (ros::ok())
@@ -227,7 +192,7 @@ void ScanTheCodeDetector::run()
     return;
 }
 
-void ScanTheCodeDetector::process_current_images()
+void StereoShapeDetector::process_current_images()
 {
     Mat current_image_left, current_image_right, processing_size_image_left,
         processing_size_image_right;
@@ -245,6 +210,7 @@ void ScanTheCodeDetector::process_current_images()
     }
     if(looking_for_model)
     {
+      found = false;
       Matx34d left_cam_mat = left_cam_model.fullProjectionMatrix();
       Matx34d  right_cam_mat = right_cam_model.fullProjectionMatrix();
       vector<Eigen::Vector3d> position;
@@ -270,19 +236,14 @@ void ScanTheCodeDetector::process_current_images()
         model_fitter->denoise_images(l_diffused, r_diffused,
                                                diffusion_time, current_image_left,
                                                current_image_right);
-//        cv::Mat draw = l_diffused.clone();
-//        for(cv::Point p: position2d)
-//             cv::circle(draw, p, 5, cv::Scalar(0,0,0), -1);
 
-
-//        cv::imshow("CORRECTPOITNS", draw);
-//        cv::waitKey(33);
         object_tracker->begin_tracking_object(position2d, l_diffused);
         looking_for_model = false;
         tracking_model = true;
       }
 
     }else if(tracking_model){
+      found = true;
       std::vector<cv::Point2f> corners;
       cv::Mat l_diffused,r_diffused;
       model_fitter->denoise_images(l_diffused, r_diffused,
@@ -291,15 +252,8 @@ void ScanTheCodeDetector::process_current_images()
 
 
       bool found_object = object_tracker->track_object(l_diffused, corners);
-
-      cv::Mat draw = l_diffused.clone();
-      for(cv::Point p: corners)
-           cv::circle(draw, p, 5, cv::Scalar(0,0,0), -1);
-
-
-//      cv::imshow("CORRECTPOITNS", draw);
-//      cv::waitKey(33);
       if(found_object){
+        // Make this more general
         std::vector<char> colors;
          bool found_all_colors = color_tracker->track(current_image_left, corners, image_proc_scale, colors);
          if(found_all_colors){
@@ -314,15 +268,11 @@ void ScanTheCodeDetector::process_current_images()
       }
     }
 
-
-    // JUSTDOIT: If the model fitter returns a decent model, stop doing the model fitter, do motion tracker
-    // JUSTDOIT: create motion tracker
-    // JUSTDOIT: look for moooofucking cullas
     // IMBN: make state machiney type thing
 
 }
 
-bool ScanTheCodeDetector::detection_activation_switch(
+bool StereoShapeDetector::detection_activation_switch(
     sub8_msgs::TBDetectionSwitch::Request &req,
     sub8_msgs::TBDetectionSwitch::Response &resp)
 {
@@ -340,7 +290,7 @@ bool ScanTheCodeDetector::detection_activation_switch(
     return false;
 }
 
-void ScanTheCodeDetector::left_image_callback(
+void StereoShapeDetector::left_image_callback(
     const sensor_msgs::ImageConstPtr &image_msg_ptr,
     const sensor_msgs::CameraInfoConstPtr &info_msg_ptr)
 {
@@ -350,7 +300,7 @@ void ScanTheCodeDetector::left_image_callback(
     left_mtx.unlock();
 }
 
-void ScanTheCodeDetector::right_image_callback(
+void StereoShapeDetector::right_image_callback(
     const sensor_msgs::ImageConstPtr &image_msg_ptr,
     const sensor_msgs::CameraInfoConstPtr &info_msg_ptr)
 {
@@ -363,8 +313,8 @@ void ScanTheCodeDetector::right_image_callback(
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "scan_the_code_perception");
-    ROS_INFO("Initializing node /scan_the_code_perception");
-    ScanTheCodeDetector scan_the_code_detector;
+    ros::init(argc, argv, "stereo_shape_detector");
+    ROS_INFO("Initializing node /stereo_shape_detector");
+    StereoShapeDetector stereo_shape_detector;
     ros::spin();
 }

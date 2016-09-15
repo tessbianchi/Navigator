@@ -8,6 +8,6 @@
 # Services need to be in navigator_msgs/srv/
 
 start_gate:
-  topic: /vision/start_gate_buoys
+  topic: /vision/start_gate_buoy
   type: StartGate
   args: {}

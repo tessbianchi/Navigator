@@ -85,7 +85,7 @@ MESSAGE( STATUS "Include search path: " ${INCLUDE_DIRECTORIES} )
 
 add_executable(
   scan_the_code
-    scan_the_code_detector.cc
+    nodes/scan_the_code_detector.cc
 )
 
 add_dependencies(

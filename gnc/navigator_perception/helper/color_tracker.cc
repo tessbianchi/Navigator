@@ -1,4 +1,5 @@
 #include <navigator_vision_lib/color_tracker.hpp>
+
 bool ColorTracker::track(cv::Mat frame_left, std::vector<cv::Point2f> points_small, double image_proc_scale, std::vector<char>& colors){
 
   double reset_scaling = 1 / image_proc_scale;
@@ -30,8 +31,8 @@ bool ColorTracker::track(cv::Mat frame_left, std::vector<cv::Point2f> points_sma
       // Create the mask with the polygon
       cv::Mat1b mask(frame_left.rows, frame_left.cols, uchar(0));
       cv::fillPoly(mask, points, &npoints, 1, cv::Scalar(255));
-//      cv::imshow("hi", mask);
-//      cv::waitKey(33);
+      debug_image_color.publish(nav::convert_to_ros_msg("mono8", mask));
+      ros::spinOnce();
 
       // Compute the mean with the computed mask
 

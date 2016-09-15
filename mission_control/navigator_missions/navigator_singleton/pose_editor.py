@@ -134,6 +134,12 @@ class PoseEditor2(object):
         self.orientation = orientation
         return self
 
+    def look_at_rel(self, rel_point):
+        return self.set_orientation(look_at(rel_point))
+
+    def look_at(self, point):
+        return self.look_at_rel(point - self.position)
+
     def yaw_left(self, angle, unit='rad'):
         return self.set_orientation(transformations.quaternion_multiply(
             transformations.quaternion_about_axis(angle * UNITS[unit], UP),

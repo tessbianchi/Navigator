@@ -51,17 +51,17 @@
   Warning:
   Because of its multithreadedness, this class cannot be copy constructed.
   For example, the following will not compile:
-    ScanTheCodeDetector tb_detector = ScanTheCodeDetector();
+    StereoShapeDetector tb_detector = ScanTheCodeDetector();
   Do this instead:
-    ScanTheCodeDetector tb_detector();
+    StereoShapeDetector tb_detector();
 */
 
-class ScanTheCodeDetector
+class StereoShapeDetector
 {
 
 public:
-    ScanTheCodeDetector();
-    ~ScanTheCodeDetector();
+    StereoShapeDetector();
+    ~StereoShapeDetector();
 
     // Public Variables
     double image_proc_scale, feature_min_distance;
@@ -76,9 +76,7 @@ private:
     bool looking_for_model = true;
     bool tracking_model = false;
 
-    //ATTRIBUTES:
 
-    // ROS
     ros::NodeHandle nh;
     ros::ServiceServer detection_switch;
     ros::ServiceClient pose_client;
@@ -89,27 +87,14 @@ private:
     nav::ImageWithCameraInfo left_most_recent;
     nav::ImageWithCameraInfo right_most_recent;
 
-    // Scan The Code Board detection will be attempted when true
     bool active;
-
-    // Goes into sequential id for pos_est srv request
     long long int run_id;
-
-    // To prevent invalid img pointers from being passed to toCvCopy (segfault)
     boost::mutex left_mtx, right_mtx;
 
-    // RVIZ
     nav::RvizVisualizer rviz;
 
-    // DBG images will be generated and published when true
-    bool generate_dbg_img;
-    cv::Mat debug_image;
-    cv::Rect upper_left, upper_right, lower_left, lower_right;
+    bool found = false;
 
-
-    //METHODS:
-
-    // Callbacks
     bool detection_activation_switch(
         sub8_msgs::TBDetectionSwitch::Request &req,
         sub8_msgs::TBDetectionSwitch::Response &resp);
