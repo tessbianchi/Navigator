@@ -40,3 +40,5 @@ Thumbs.db
 # Eclipse and PyDev project files
 .project
 .pydevproject
+
+.autosave
