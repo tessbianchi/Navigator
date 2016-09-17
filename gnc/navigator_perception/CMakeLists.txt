@@ -13,8 +13,7 @@ find_package(catkin
     image_transport
     image_geometry
     cv_bridge
-    sub8_build_tools
-    sub8_msgs
+    navigator_msgs
     message_generation
     std_msgs
     geometry_msgs
@@ -31,7 +30,6 @@ catkin_package(
   CATKIN_DEPENDS
     roscpp
     rospy
-    sub8_msgs
     message_runtime
     std_msgs
     geometry_msgs
@@ -39,9 +37,8 @@ catkin_package(
     system_lib
     image_transport
     image_geometry
-    cv_bridge
-    sub8_build_tools
-    sub8_msgs
+    navigator_msgs
+    cv_bridge 
 )
 
 include_directories(
@@ -90,7 +87,7 @@ add_executable(
 
 add_dependencies(
   scan_the_code
-   sub8_msgs_generate_messages_cpp
+   navigator_msgs
    ${catkin_EXPORTED_TARGETS}
 )
 

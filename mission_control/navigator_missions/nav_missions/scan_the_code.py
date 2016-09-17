@@ -5,11 +5,16 @@ import numpy as np
 import navigator_tools
 import math as m
 import matplotlib.pyplot as plt
+import rospy
+import navigator_msgs.srv as navigator_srvs
+
 
 @txros.util.cancellableInlineCallbacks
 def main(navigator):
-    # activate stereo model fitter
     navigator.change_wrench("autonomous")
+    yield navigator.vision_request("scan_the_code_activate")
+
+    # activate stereo model fitter
     granularity = 6
     distance = 11
     angle = 360/granularity * 3.14/180
@@ -21,16 +26,24 @@ def main(navigator):
         n[0] = distance * m.cos(i*angle) ; n[1] = distance * m.sin(i*angle)
         new = [n[0]+base[0], n[1]+base[1],0]
         yield navigator.move.set_position(new).look_at([3,-17,0]).go()
-        # call the rosservice, get status
-        # if the things isn't found, keep going
-        # if the thing is found, wait for colors until timeout, and then if it works, return
+        m = yield navigator.vision_request("scan_the_code_status")
+        if(m.tracking_model):
+            if(m.mission_complete):
+                print "Mission complete " m.colors
+                # SET COLORS ON NAVIGATOR
+                return
+            else:
+                rospy.sleep(15.)
+                m =  = yield navigator.vision_request("scan_the_code_status")
+                if(m.mission_complete):
+                    print "Mission complete " m.colors
+                    # SET COLORS ON NAVIGATOR
+                    return
 
 
-   # if it doesn't work fill in random colors, die
+# SET COLORS ON NAVIGATOR TO FAKE VALS
 
 
-
-    yield navigator.nh.sleep(2)
 
 
 

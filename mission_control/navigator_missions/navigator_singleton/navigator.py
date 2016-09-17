@@ -61,6 +61,7 @@ class Navigator(object):
         s_args = dict(vision_proxy['args'].items() + kwargs.items())
         s_req = vision_proxy['request'](**s_args)
 
+
         # Returns deferred object, make sure to yield on this
         return s_client(s_req)
 

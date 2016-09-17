@@ -53,8 +53,6 @@ bool ObjectTracker::track_object(cv::Mat left_frame, std::vector<cv::Point2f>& p
         double t1 = acos(h);
         double diff = t1 - M_PI/2;
         if(fabs(diff) > M_PI/5) return false;
-
-
       }
 
       cv::Mat img_display;

@@ -15,8 +15,8 @@ public:
 
 private:
   std::vector<cv::Point2f> prev_points;
-  int template_size = 20;
-  int search_size = 40;
+  cv::Mat orig_frame;
+
   ros::NodeHandle nh;
   image_transport::ImageTransport image_transport = image_transport::ImageTransport(nh);
   image_transport::Publisher debug_image_tracking_points = image_transport.advertise("stereo_model_fitter/debug_img/tracking_points", 1, true);
@@ -28,7 +28,6 @@ private:
 
   //DEBUG
 
-  cv::Mat orig_frame;
   int count = 0;
 };
 

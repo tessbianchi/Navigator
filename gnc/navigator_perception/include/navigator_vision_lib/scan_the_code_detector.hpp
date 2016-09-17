@@ -31,8 +31,7 @@
 
 #include <navigator_vision_lib/cv_tools.hpp>
 #include <navigator_vision_lib/visualization.hpp>
-#include <sub8_msgs/TorpBoardPoseRequest.h>
-#include <sub8_msgs/TBDetectionSwitch.h>
+#include <navigator_msgs/StereoShapeDetector.h>
 
 #include "model.h"
 #include "stereomodelfitter.h"
@@ -79,9 +78,8 @@ private:
 
     ros::NodeHandle nh;
     ros::ServiceServer detection_switch;
-    ros::ServiceClient pose_client;
     image_transport::CameraSubscriber left_image_sub, right_image_sub;
-    image_transport::ImageTransport image_transport;
+    image_transport::ImageTransport image_transport = image_transport::ImageTransport(nh);
     image_transport::Publisher debug_image_pub;
     image_geometry::PinholeCameraModel left_cam_model, right_cam_model;
     nav::ImageWithCameraInfo left_most_recent;
@@ -91,13 +89,12 @@ private:
     long long int run_id;
     boost::mutex left_mtx, right_mtx;
 
+    // RVIZ
     nav::RvizVisualizer rviz;
 
-    bool found = false;
-
     bool detection_activation_switch(
-        sub8_msgs::TBDetectionSwitch::Request &req,
-        sub8_msgs::TBDetectionSwitch::Response &resp);
+        navigator_msgs::StereoShapeDetector::Request &req,
+        navigator_msgs::StereoShapeDetector::Response &resp);
 
     void left_image_callback(const sensor_msgs::ImageConstPtr &image_msg_ptr,
                              const sensor_msgs::CameraInfoConstPtr &info_msg_ptr);

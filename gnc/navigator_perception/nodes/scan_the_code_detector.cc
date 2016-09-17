@@ -7,38 +7,36 @@ using namespace cv;
 // Class: StereoShapeDetector ////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-StereoShapeDetector::StereoShapeDetector()
-try :
-    image_transport(nh),   rviz("/stereo_shape_detector/visualization/detection")
-    {
+StereoShapeDetector::StereoShapeDetector()try :
+  image_transport(nh),   rviz("/scan_the_code/visualization/detection")
+  {
+      stringstream log_msg;
+      init_ros(log_msg);
 
-        stringstream log_msg;
-        init_ros(log_msg);
+      log_msg << "\nInitializing ScanTheCodeDetector:\n";
+      int tab_sz = 4;
 
-        log_msg << "\nInitializing StereoShapeDetector:\n";
-        int tab_sz = 4;
+      object_tracker = new ObjectTracker();
 
-        PerceptionModel model = PerceptionModel(.1905,.381,4);
-        model_fitter = new StereoModelFitter(model);
-        object_tracker = new ObjectTracker();
-        color_tracker = new ColorTracker();
-        // Start main detector loop
-        run_id = 0;
+      // Start main detector loop
+      run_id = 0;
 
-        boost::thread main_loop_thread(boost::bind(&StereoShapeDetector::run, this));
-        main_loop_thread.detach();
-        log_msg << setw(1 * tab_sz) << "" << "Running main detector loop in a background thread\n";
+      boost::thread main_loop_thread(boost::bind(&StereoShapeDetector::run, this));
+      main_loop_thread.detach();
+      log_msg << setw(1 * tab_sz) << "" << "Running main detector loop in a background thread\n";
 
-        log_msg << "StereoShapeDetector Initialized\n";
-        ROS_INFO(log_msg.str().c_str());
+      log_msg << "ScanTheCodeDetector Initialized\n";
+      ROS_INFO(log_msg.str().c_str());
 
-    }
+  }
 catch (const exception &e)
-    {
-        ROS_ERROR("Exception from within StereoShapeDetector constructor "
-                  "initializer list: ");
-        ROS_ERROR(e.what());
-    }
+  {
+      ROS_ERROR("Exception from within ScanTheCodeDetector constructor "
+                "initializer list: ");
+      ROS_ERROR(e.what());
+  }
+
+
 
 StereoShapeDetector::~StereoShapeDetector()
 {
@@ -168,8 +166,9 @@ void StereoShapeDetector::init_ros(stringstream& log_msg)
 
     active = false;
     string activation = param<string>("/stereo_shape_detector/activation", activation_default);
-    detection_switch = nh.advertiseService(
-                           activation, &StereoShapeDetector::detection_activation_switch, this);
+
+    detection_switch = nh.advertiseService(activation, &StereoShapeDetector::detection_activation_switch, this);
+
     log_msg
             << setw(1 * tab_sz) << "" << "Advertised stereo shape detector board detection switch:\n"
             << setw(2 * tab_sz) << "" << "\x1b[37m" << activation << "\x1b[0m\n";
@@ -179,16 +178,15 @@ void StereoShapeDetector::init_ros(stringstream& log_msg)
 void StereoShapeDetector::run()
 {
     ros::Rate loop_rate(10);  // process images 10 times per second
+
     while (ros::ok())
         {
-            if (true)
-                {
-                    process_current_images();
-
-                }
+            if (active)
+            {
+                process_current_images();
+            }
             loop_rate.sleep();
         }
-
     return;
 }
 
@@ -210,7 +208,6 @@ void StereoShapeDetector::process_current_images()
     }
     if(looking_for_model)
     {
-      found = false;
       Matx34d left_cam_mat = left_cam_model.fullProjectionMatrix();
       Matx34d  right_cam_mat = right_cam_model.fullProjectionMatrix();
       vector<Eigen::Vector3d> position;
@@ -240,10 +237,10 @@ void StereoShapeDetector::process_current_images()
         object_tracker->begin_tracking_object(position2d, l_diffused);
         looking_for_model = false;
         tracking_model = true;
+        color_tracker->set_status(true);
       }
 
     }else if(tracking_model){
-      found = true;
       std::vector<cv::Point2f> corners;
       cv::Mat l_diffused,r_diffused;
       model_fitter->denoise_images(l_diffused, r_diffused,
@@ -253,18 +250,13 @@ void StereoShapeDetector::process_current_images()
 
       bool found_object = object_tracker->track_object(l_diffused, corners);
       if(found_object){
-        // Make this more general
-        std::vector<char> colors;
-         bool found_all_colors = color_tracker->track(current_image_left, corners, image_proc_scale, colors);
-         if(found_all_colors){
-           //PUBLISH TO A ROSTOPIC
-         }
+         color_tracker->track(current_image_left, corners, image_proc_scale);
       }else{
         looking_for_model = true;
         tracking_model = false;
         object_tracker->clear();
         color_tracker->clear();
-
+        color_tracker->set_status(false);
       }
     }
 
@@ -273,21 +265,45 @@ void StereoShapeDetector::process_current_images()
 }
 
 bool StereoShapeDetector::detection_activation_switch(
-    sub8_msgs::TBDetectionSwitch::Request &req,
-    sub8_msgs::TBDetectionSwitch::Response &resp)
+    navigator_msgs::StereoShapeDetector::Request &req,
+    navigator_msgs::StereoShapeDetector::Response &resp)
 {
-    resp.success = false;
     stringstream ros_log;
-    ros_log << "\x1b[1;31mSetting torpedo board detection to: \x1b[1;37m"
-            << (req.detection_switch ? "on" : "off") << "\x1b[0m";
     ROS_INFO(ros_log.str().c_str());
+
+    if(!req.detection_switch){
+      ros_log << "Shape Detector switch turned off" << req.detection_switch <<"\n";
+      ROS_INFO(ros_log.str().c_str());
+      resp.success = true;
+      return true;
+    }
+
+    ros_log << "Shape Detector switch turned on" << req.detection_switch <<"\n";
+    ros_log<<  "Detecting shape "<< req.shape <<"\n";
+    ros_log << "Shape Detector shape: " << req.shape <<"\n";
+    ros_log << "Shape Detector processing type: " << req.processing_type <<"\n";
+    ros_log << "Shape Detector num_points: " << req.num_points <<"\n";
+    ROS_INFO(ros_log.str().c_str());
+
+    std::vector<float> params;
+    for(float f : req.model_params){
+      params.push_back(f);
+    }
+
+    // This seems unnecessary now, but I am adding on to this later,
+    // to make this code more general to any shape.
+    if(req.shape == "RectangleModel"){
+
+      PerceptionModel model = PerceptionModel(params,req.num_points);
+      this->model_fitter = new StereoModelFitter(model);
+
+    }
+    if(req.processing_type == "ColorTracker"){
+      color_tracker = new ColorTracker();
+    }
     active = req.detection_switch;
-    if (active == req.detection_switch)
-        {
-            resp.success = true;
-            return true;
-        }
-    return false;
+    resp.success = true;
+    return true;
 }
 
 void StereoShapeDetector::left_image_callback(
@@ -317,4 +333,5 @@ int main(int argc, char **argv)
     ROS_INFO("Initializing node /stereo_shape_detector");
     StereoShapeDetector stereo_shape_detector;
     ros::spin();
+
 }

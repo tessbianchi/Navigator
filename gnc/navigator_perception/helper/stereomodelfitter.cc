@@ -4,8 +4,13 @@ StereoModelFitter::StereoModelFitter(PerceptionModel model):
     model(model)
 {
 
-    debug_image_3dpoints = image_transport.advertise("stereo_model_fitter/debug_img/3dpoints", 1, true);
+  std::cout<<"HIIII"<<std::endl;
 
+
+    //debug_image_3dpoints = image_transport.advertise("stereo_model_fitter/debug_img/3dpoints", 1, true);
+
+
+    std::cout<<"sup"<<std::endl;
 //    ros::NodeHandle nh;
 //    image_transport::ImageTransport it(nh);
 //    pub = it.advertise("scan_the_code/debug1", 1);

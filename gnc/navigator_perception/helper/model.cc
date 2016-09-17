@@ -1,9 +1,9 @@
 #include <navigator_vision_lib/model.h>
 
 
-PerceptionModel::PerceptionModel(float width, float height, int min_points)
-                                : width(width),
-                                  height(height),
+PerceptionModel::PerceptionModel(std::vector<float> model_params, int min_points)
+                                : width(model_params[0]),
+                                  height(model_params[1]),
                                   min_points(min_points)
 {
     unused_distances.push_back(width);
@@ -171,7 +171,7 @@ bool PerceptionModel::get_model(std::vector<Eigen::Vector3d>& model3d, std::vect
     if(potential_models.size() != 0 && min_cost < 2){
       //visualize_points(min_model, left_image, left_cam_mat, "WINNER", min_cost);
       cost_avg = (cost_avg * count + min_cost)/++count;
-//      std::cout<<"GOTMODEL"<<std::endl;
+      std::cout<<"GOTMODEL"<<std::endl;
 //      std::cout<<cost_avg<<std::endl;
 //      std::cout<<min_cost<<std::endl;
       if(count > 5 && min_cost < cost_avg || min_cost < 1){
