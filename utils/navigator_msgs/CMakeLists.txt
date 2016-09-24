@@ -20,6 +20,7 @@ add_message_files(
   Points.msg
   Waypoint.msg
   Buoy.msg
+  PerceptionObject.msg
 )
 
 add_service_files(
@@ -31,6 +32,7 @@ add_service_files(
   StartGate.srv
   StereoShapeDetector.srv
   ScanTheCodeMission.srv
+  PerceptionObjectService.srv
 )
 
 generate_messages(
