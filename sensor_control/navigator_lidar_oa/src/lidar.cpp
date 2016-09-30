@@ -44,8 +44,9 @@ OccupancyGrid ogrid(MAP_SIZE_METERS,ROI_SIZE_METERS,VOXEL_SIZE_METERS);
 AStar astar(ROI_SIZE_METERS/VOXEL_SIZE_METERS);
 nav_msgs::OccupancyGrid rosGrid;
 visualization_msgs::MarkerArray markers;	
+visualization_msgs::MarkerArray small_markers;
 visualization_msgs::Marker m;
-ros::Publisher pubGrid,pubMarkers;
+ros::Publisher pubGrid,pubMarkers,pubMarkersSmall;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -87,8 +88,85 @@ void cb_velodyne(const sensor_msgs::PointCloud2ConstPtr &pcloud)
 	ogrid.updatePointsAsCloud(pcloud,T_enu_velodyne,MAX_HITS_IN_CELL);
 	ogrid.createBinaryROI(MIN_HITS_FOR_OCCUPANCY,MAXIMUM_Z_HEIGHT);
 	std::vector<objectXYZ> objects;
+	std::vector<objectXYZ> small_objects;
 	std::vector< std::vector<int> > cc = ConnectedComponents(ogrid,objects);
 	ogrid.inflateBinary(3);
+
+	std::cout<<objects.size()<<" o size"<<std::endl;
+
+
+
+	for(auto obj : objects){
+		float xmin = obj.position.x - (obj.scale.x/2 + .8);
+		float xmax = obj.position.x + (obj.scale.x/2 + .8);
+		float ymin = obj.position.y - (obj.scale.y/2 + .8);
+		float ymax = obj.position.y + (obj.scale.y/2 + .8);
+		float zmin = obj.position.z - (obj.scale.z/2 + .8);
+		float zmax = obj.position.z + (obj.scale.z/2 + .8);
+		float newxmin = 100000;
+		float newymin = 100000;
+		float newzmin = 100000;
+		float newzmax = -100000;
+		float newymax = -100000;
+		float newxmax = -100000;
+
+		std::cout<< newxmin<< ","<< newxmax <<","<<newymin<<","<<newymax<<","<<newzmin<<","<<newzmax<<std::endl;
+
+		std::cout<< xmin<< ","<< xmax <<","<<ymin<<","<<ymax<<","<<zmin<<","<<zmax<<std::endl;
+		cout<<"------"<<endl;
+		for (auto ii = 0, jj = 0; ii < pcloud->width; ++ii,jj+=pcloud->point_step) {
+			floatConverter x,y,z,i;
+			for (int kk = 0; kk < 4; ++kk)
+			{
+				x.data[kk] = pcloud->data[jj+kk];
+				y.data[kk] = pcloud->data[jj+4+kk];
+				z.data[kk] = pcloud->data[jj+8+kk];
+				i.data[kk] = pcloud->data[jj+16+kk];
+			}
+			Eigen::Vector3d xyz_in_velodyne(x.f,y.f,z.f);
+			Eigen::Vector3d xyz_in_enu = T_enu_velodyne*xyz_in_velodyne;
+			float x_ = xyz_in_enu(0);
+			float y_ = xyz_in_enu(1);
+			float z_ = xyz_in_enu(2);
+			std::cout<< x_ << ","<< y_ <<","<<z_ <<std::endl; 
+
+			if(x_ > xmin && x_ < xmax && y_ > ymin && y_ < ymax && z_ > zmin && z_ < zmax){
+				newxmin = x_ < newxmin ? x_ : newxmin;
+				newymin = y_ < newymin ? y_ : newymin;
+				newzmin = z_ < newzmin ? z_ : newzmin;
+				newxmax = x_ > newxmax ? x_ : newxmax;
+				newymax = y_ > newymax ? y_ : newymax;
+				newzmax = z_ > newzmax ? z_ : newzmax;
+				std::cout<< newxmin<< ","<< newxmax <<","<<newymin<<","<<newymax<<","<<newzmin<<","<<newzmax<<std::endl;
+				cout<<"point_added"<<std::endl;
+			}			
+		}
+
+		newxmin = newxmin < newxmax ? newxmin : newxmax;
+		newymin = newymin < newymax ? newymin : newymax;
+		newzmin = newzmin < newzmax ? newzmin : newzmax;
+		newxmax = newxmin < newxmax ? newxmax : newxmin;
+		newymax = newymin < newymax ? newymax : newymin;
+		newzmax = newzmin < newzmax ? newzmax : newzmin;
+
+		std::cout<<"SUPPPPP"<<std::endl;
+		std::cout<< newxmin<< ","<< newxmax <<","<<newymin<<","<<newymax<<","<<newzmin<<","<<newzmax<<std::endl;
+
+		if(newxmin != 100000 && newymin != 100000 && newzmin !=100000
+			&& newxmax != -100000 && newymax != -100000 && newzmax != -100000){
+			auto sm_ob = objectXYZ();
+			sm_ob.position.x = (newxmax + newxmin)/2;
+			sm_ob.scale.x = fabs(newxmax - newxmin);
+			sm_ob.position.y = (newymax + newymin)/2;
+			sm_ob.scale.y = fabs(newymax - newymin);	
+			sm_ob.position.z = (newzmax + newzmin)/2;
+			sm_ob.scale.z = fabs(newzmax - newzmin);
+			small_objects.push_back(sm_ob);	
+
+		}		
+	}
+
+	std::cout<<small_objects.size()<<" size"<<std::endl;
 
 	//Fake waypoint - this needs to be replaced!
 	Eigen::Vector3d v = T_enu_velodyne*Eigen::Vector3d(30,0,0);;
@@ -154,9 +232,7 @@ void cb_velodyne(const sensor_msgs::PointCloud2ConstPtr &pcloud)
 	m.header.seq = 0;
 	m.header.frame_id = "enu";
 	m.action = 3;
-	m.id = 0;
-	markers.markers.push_back(m);
-	int id = 1;
+	int id = 0;
 	for (auto obj : objects) {
 		if (obj.scale.x > 10 || obj.scale.y > 10 || obj.scale.z > 10) { continue; }
 		m.header.stamp = ros::Time::now();
@@ -170,6 +246,26 @@ void cb_velodyne(const sensor_msgs::PointCloud2ConstPtr &pcloud)
 		++id;
 	}
 	pubMarkers.publish(markers);
+
+
+	small_markers.markers.clear();
+	m.header.seq = 0;
+	m.header.frame_id = "enu";
+	m.action = 3;
+	id = 100;
+	for (auto obj : small_objects) {
+		if (obj.scale.x > 10 || obj.scale.y > 10 || obj.scale.z > 10) { continue; }
+		m.header.stamp = ros::Time::now();
+		m.id = id;
+		m.type = visualization_msgs::Marker::CUBE;
+		m.action = visualization_msgs::Marker::ADD;
+		m.pose.position = obj.position;
+		m.scale = obj.scale;
+		m.color.a = 0.6; m.color.r = 1; m.color.g = 1; m.color.b = 1;
+		small_markers.markers.push_back(m);
+		++id;
+	}
+	pubMarkersSmall.publish(small_markers);
 
 	//Elapsed time
 	ROS_INFO_STREAM("Elapsed time: " << (ros::Time::now()-timer).toSec());
@@ -218,6 +314,7 @@ int main(int argc, char* argv[])
 	//Publish occupancy grid and visualization markers
 	pubGrid = nh.advertise<nav_msgs::OccupancyGrid>("ogrid_batcave",10);
 	pubMarkers = nh.advertise<visualization_msgs::MarkerArray>("markers_batcave",10);
+	pubMarkersSmall = nh.advertise<visualization_msgs::MarkerArray>("markers_small_batcave",10);
 	
 	//Give control to ROS
 	ros::spin();
