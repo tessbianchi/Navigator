@@ -3,13 +3,11 @@ from txros import util, NodeHandle
 from twisted.internet import defer, reactor
 import sys
 import rospy
-
 from navigator_singleton.navigator import Navigator
 from navigator_msgs.msg import PerceptionObject
-
 import nav_missions
-
 import argparse
+
 
 @util.cancellableInlineCallbacks
 def go(mission):
@@ -19,11 +17,12 @@ def go(mission):
     print mission.name
     print to_run
     yield to_run.main(n)
-    
+
     defer.returnValue(reactor.stop())
 
 class Mission(object):
-    def __init__(self,name,item_dep,children):
+
+    def __init__(self, name, item_dep, children):
         self.name = name
         self.item_dep = item_dep
         self.children = children
@@ -38,6 +37,7 @@ class Mission(object):
         reactor.callWhenRunning(self.hi)
         reactor.run()
 
+
 class MissionPlanner:
 
     def __init__(self):
@@ -46,9 +46,9 @@ class MissionPlanner:
         self.found = []
         # Put in YAML file
         stc = Mission("scan_the_code", ["stc"], [])
-        #bf = Mission("back_and_forth", [], [stc])
-        self.tree.append(stc)
-        self.vision_sub = rospy.Subscriber('/vision/object_classifier', PerceptionObject, self.new_item)
+        bf = Mission("back_and_forth", ["globe"], [stc])
+        self.tree.append(bf)
+        self.vision_sub = rospy.Subscriber('/vision/object_found', PerceptionObject, self.new_item)
         # serv = navigator.nh.get_service_client("/vision/object_classifier_service", s_type)
         self.init()
         self.refresh()
@@ -57,7 +57,6 @@ class MissionPlanner:
         # resp = serv("stc")
         # if(resp.found):
         self.found.append('stc')
-
 
     def new_item(self, obj):
         self.found.append(obj.name)
@@ -81,7 +80,7 @@ class MissionPlanner:
         if(len(self.queue) == 0):
             return
         for mission in self.queue:
-            # add a timeout here 
+            # add a timeout here
             mission.do_mission()
             print "sup"
             for child in mission.children:
@@ -107,4 +106,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

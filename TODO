@@ -6,10 +6,10 @@
 		[] Turn off turn on
 
 [] OD
-	[] Put GPS BB points as rosparams
+	[X] Put GPS BB points as rosparams
 	[] OD only gives you objects that are far from the objects that you have already seen, and updates the positions of the old objects
 
-	[] ROS Topics: List of objects, Marker Array
+	[Xy] ROS Topics: List of objects, Marker Array
 
 [] OC
 
@@ -31,3 +31,47 @@
 
 
 [] Make a huge launch file 
+
+
+
+
+
+Object DB:
+Publish:
+	/database/object_found	: PerceptionObject []
+	/database/objects_classified  : MarkerArray []
+Advertise: 
+	/database/single		: string | PerceptionObject []
+	/database/full			:           | PerceptionObjects []
+Subscribe:
+	/classifier/object		: PerceptionObject []
+Action Server:
+/exploration/find_unknown []
+	
+
+Object Classifier:
+Publish:
+	/classifier/object		: PerceptionObject []
+Subscribe: 
+	/unclassified/objects : Buoy []
+Service Client:
+	/vision/objects_unclassified   : MarkerArray []
+
+Missions
+Service Client:
+	/database/single		: string | PerceptionObject []
+
+MissionPlanner
+Subscribe:
+	/database/object_found	: PerceptionObject []
+Service Client:
+	/exploration/yield_control	 : Bool []
+
+IRA
+Publish:
+	/unclassified/objects 		 : Buoy []
+	/unclassified/objects/markers : MarkerArray []
+Advertise: 
+Subscribe:
+Service Client:
+

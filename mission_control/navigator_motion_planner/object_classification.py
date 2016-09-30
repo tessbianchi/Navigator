@@ -12,52 +12,11 @@ from twisted.internet import defer
 
 nh = None
 
+
 class VisualObject:
-    def __init__(self, name, size):
-        self.name = name
-        self.size = size
-        self.last_viewed = nh.get_time()
-        self.position = [100000,100000,100000]
-        self.found_before = False
-        self.odom = None
-
-    def check_object(self, new_pos, odom):
-        # print self.name, "found"
-        self.found_before = True
-        self.last_viewed = nh.get_time()
-        self.position = new_pos
-        self.odom = odom
-        return True
-
-class VisualObjectCollection:
-    def __init__(self, name, size):
-        self.name = name
-        self.size = size
-        self.objects  = []
-        self.found_before = False
-        self.odom = None
-
-    def add_object(self, pos, odom):
-        o = VisualObject(self.name, self.size)
-        o.position = pos
-        o.found_before = True
-        o.odom = odom
-        self.odom = odom
-        self.objects.append(o)
-
-    def check_object(self, new_pos, odom):
-        # print self.name, "found"
-        self.found_before = True
-        for i, obj in enumerate(self.objects):
-            if(np.linalg.norm(np.subtract(obj.position, new_pos)) < obj.last_viewed.to_sec() * .25):
-                self.objects[i].last_view = nh.get_time()
-                self.objects[i].position = new_pos
-                self.objects[i].odom = odom
-                self.odom = odom
-                return True
-        return False 
-
-
+    __init__(self):
+        self.position = None
+        self.
 
 class ObjectClassifier:
 
@@ -65,45 +24,42 @@ class ObjectClassifier:
         print "init OC"
         self.pose = None
         # TODO: USE A YAML
-        
 
     @util.cancellableInlineCallbacks
-    def _init(self, _nh):
+    def _init(self):
         print "init node"
-        self.nh = _nh
+        self.nh = yield NodeHandle.from_argv("object_classifier")
         global nh
         nh = self.nh
+    
         self.pub = yield self.nh.advertise('object_classifier', PerceptionObject)
         self.serv = yield self.nh.advertise_service('/vision/object_classifier_service', PerceptionObjectService, self.query)
         self.odom_sub = yield self.nh.subscribe('/odom', Odometry, self.get_odom)
         self.pub_vis = yield self.nh.advertise('/rviz/objs', Marker)
-        
+
         print "published"
         self.items = {}
-        self.items["buoy_field"] = VisualObjectCollection("buoy_field", [1,1,1])
-        self.items["shooter"] = VisualObject("shooter", [1.8,0,1.2])
-        self.items["scan_the_code"] = VisualObject("scan_the_code", [.3,0,.4])
+        self.items["buoy_field"] = VisualObjectCollection("buoy_field", [1, 1, 1])
+        self.items["shooter"] = VisualObject("shooter", [1.8, 0, 1.2])
+        self.items["scan_the_code"] = VisualObject("scan_the_code", [.3, 0, .4])
         self.count = 0
         defer.returnValue(self)
 
     def get_odom(self, odom):
         self.pose = odometry_to_numpy(odom)[0]
 
-
     def query(self, req):
         name = req.name
-        print self.items
-        print type(name)
-        print self.items[name]
         if(name not in self.items.keys() or not self.items[name].found_before):
             return PerceptionObjectServiceResponse(False, False, None, None, None)
 
+        # Get element from the list 
         myobj = self.items[name]
 
         xyz_arr = self.pose[0]
 
         if(name is 'buoy_field'):
-            myobj = min(myobj.objects, key=lambda y : np.linalg.norm(np.subtract(xyz_arr,y.position)))
+            myobj = min(myobj.objects, key=lambda y: np.linalg.norm(np.subtract(xyz_arr, y.position)))
 
         pos = Vector3()
         pos.x = myobj.position[0]
@@ -114,8 +70,6 @@ class ObjectClassifier:
         size.x = myobj.size[0]
         size.y = myobj.size[1]
         size.z = myobj.size[2]
-
-        #uncertainty = myobj.last_view.to_sec()
 
         mypose = myobj.odom
         pose = Pose()
@@ -133,27 +87,27 @@ class ObjectClassifier:
             found = True
 
         return PerceptionObjectServiceResponse(found, True, pos, size, pose)
-       
+
     def classify(self, xyz, lwh):
-        pos = [xyz.x,xyz.y,xyz.z]
-        size = [lwh.x,lwh.y,lwh.z]
+        pos = [xyz.x, xyz.y, xyz.z]
+        size = [lwh.x, lwh.y, lwh.z]
         for name, obj in self.items.iteritems():
             size_item = obj.size
             errx = .5
             erry = .5
             errz = .5
             if(size[0] > size_item[0] - errx and size[0] < size_item[0] + errx and
-               size[1] > size_item[1] - erry and size[1] < size_item[1] + erry and 
+               size[1] > size_item[1] - erry and size[1] < size_item[1] + erry and
                size[2] > size_item[2] - errz and size[2] < size_item[2] + errz):
                 myodom = self.pose
                 # if(not obj.found):
-                    
+
                 if(name == 'buoy_field'):
-                    self.add_marker_vis(pos,[0,0,1])
+                    self.add_marker_vis(pos, [0, 0, 1])
                 if(name == 'scan_the_code'):
-                    self.add_marker_vis(pos,[1,1,0])
+                    self.add_marker_vis(pos, [1, 1, 0])
                 if(name == 'shooter'):
-                    self.add_marker_vis(pos,[1,0,1])
+                    self.add_marker_vis(pos, [1, 0, 1])
                     print size
                     print "GOTTEM", name, obj
                     print self.count
@@ -166,14 +120,13 @@ class ObjectClassifier:
                 p.size = lwh
                 self.pub.publish(p)
 
-            
     def add_marker_vis(self, pos, colors):
         marker = Marker()
-        marker.header.frame_id = "enu";
+        marker.header.frame_id = "enu"
         marker.header.stamp = nh.get_time()
-        marker.ns = "perception_objects";
+        marker.ns = "perception_objects"
         import random
-        marker.id = random.randint(500,10000000)
+        marker.id = random.randint(500, 10000000)
         marker.type = Marker.SPHERE
         marker.action = Marker.ADD
         marker.pose.position.x = pos[0]
@@ -190,6 +143,13 @@ class ObjectClassifier:
         marker.color.r = colors[0]
         marker.color.g = colors[1]
         marker.color.b = colors[2]
-        self.pub_vis.publish(marker);
-        self.count+=1
+        self.pub_vis.publish(marker)
+        self.count += 1
 
+@util.cancellableInlineCallbacks
+def main():
+
+    od = yield ObjectClassifier()_init() 
+
+reactor.callWhenRunning(main)
+reactor.run()
