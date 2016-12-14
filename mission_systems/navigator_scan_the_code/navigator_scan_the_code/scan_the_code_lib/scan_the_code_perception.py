@@ -1,4 +1,5 @@
 """Handles the perception of the ScanTheCode Mission."""
+from __future__ import division
 from collections import deque
 from scanthecode_model_tracker import ScanTheCodeModelTracker
 from image_geometry import PinholeCameraModel
@@ -28,7 +29,7 @@ class ScanTheCodePerception(object):
         self.debug = debug
         self.pers_points = []
         self.model_tracker = ScanTheCodeModelTracker()
-        self.pinhole_cam = PinholeCameraModel()
+        self.camera_model = PinholeCameraModel()
         self.my_tf = my_tf
 
         # %%%%%%%%%%%%debug%%%%%%%%%%%%%%%%
@@ -37,13 +38,14 @@ class ScanTheCodePerception(object):
 
     def add_image(self, image):
         """Add an image to the image cache."""
-        if len(self.image_cache) > 20:
+        if len(self.image_cache) > 50:
             self.image_cache.popleft()
         self.image_cache.append(image)
 
     def update_info(self, info):
         """Update the camera calibration info."""
         self.last_cam_info = info
+        self.camera_model.fromCameraInfo(info)
 
     def _convert_3d_2d(self, point):
         K = self.last_cam_info.K
@@ -58,7 +60,7 @@ class ScanTheCodePerception(object):
             pl[0] = 0
         if pl[1] < 0:
             pl[1] = 0
-        return(int(pl[0]), int(pl[1]))
+        return(pl[0], pl[1])
 
     @txros.util.cancellableInlineCallbacks
     def _get_3d_points_stereo(self, points_3d_enu, time):
@@ -96,12 +98,11 @@ class ScanTheCodePerception(object):
                 zmin = point[2]
                 ymin = point[1]
 
-        buff = .07
+        buff = .2
         for i, point in enumerate(points_3d):
             if(point[1] < ymin + buff and point[1] > ymin - buff and point[0] < xmin):
                 xmin = point[0]
                 zmin = point[2]
-                ymin = point[1]
         return xmin, ymin, zmin
 
     def _get_points_in_range(self, axis, lower, upper, points):
@@ -141,15 +142,12 @@ class ScanTheCodePerception(object):
 
     def _get_2d_points_stc(self, points_3d):
         xmin, ymin, zmin = self._get_top_left_point(points_3d)
-        ymin -= .15
-        xmin -= .05
+        ymin -= .05
+        xmin -= .1
 
         points_3d = [[xmin, ymin, zmin], [xmin + .8, ymin + .75, zmin], [xmin, ymin + .75, zmin], [xmin + .8, ymin, zmin]]
 
-        points_2d = []
-        for i in range(0, len(points_3d)):
-            point = points_3d[i]
-            points_2d.append(self._convert_3d_2d(point))
+        points_2d = map(lambda x: self.camera_model.project3dToPixel(x), points_3d)
         return points_2d
 
     def _get_rectangle(self, img, bounding_rect):
@@ -175,20 +173,25 @@ class ScanTheCodePerception(object):
         return xmin, ymin, xmax, ymax
 
     def _get_closest_image(self, time):
-        min_img = None
+        min_idx = None
         min_diff = genpy.Duration(sys.maxint)
-        for img in self.image_cache:
+        for i, img in enumerate(self.image_cache):
             diff = abs(time - img.header.stamp)
             if diff < min_diff:
                 min_diff = diff
-                min_img = img
-        return min_img
+                min_idx = i
+        j = self.image_cache[min_idx]
+
+        n = -20
+        if min_idx + n > 0:
+            j = self.image_cache[min_idx + n]
+        return j
 
     @txros.util.cancellableInlineCallbacks
     def search(self, scan_the_code):
         """Search for the colors in the scan the code object."""
         if len(self.image_cache) == 0:
-            print "no images"
+            print "No images"
             defer.returnValue((False, None))
         image_ros = self._get_closest_image(scan_the_code.header.stamp)
         try:
@@ -199,10 +202,10 @@ class ScanTheCodePerception(object):
 
         image_clone = image.copy()
 
-        points_3d = yield self._get_3d_points_stereo(scan_the_code.points, image_ros.header.stamp)
-        for i in points_3d:
-            p = self._convert_3d_2d(i)
-            po = (int(p[0]), int(p[1]))
+        points_3d = yield self._get_3d_points_stereo(scan_the_code.points, scan_the_code.header.stamp)
+        points_2d = map(lambda x: self.camera_model.project3dToPixel(x), points_3d)
+        for p in points_2d:
+            po = (int(round(p[0])), int(round(p[1])))
             cv2.circle(image_clone, po, 2, (0, 255, 0), -1)
         points_2d = self._get_2d_points_stc(points_3d)
         self.debug.add_image(image_clone, "bounding_box", topic="bounding_box")
@@ -234,7 +237,7 @@ class ScanTheCodePerception(object):
         self.mission_complete = self.model_tracker.update_model(image, pnts, self.debug)
         if(self.mission_complete):
             print "MISSION COMPLETE"
-            defer.returnValue((True, self.model_tracker.colors))
+            defer.returnValue((False, self.model_tracker.colors))
         else:
             defer.returnValue((False, None))
 
@@ -276,15 +279,10 @@ class ScanTheCodePerception(object):
         depth = self._get_depth('z', points_oi)
         fprint("DEPTH: {}".format(depth), msg_color="green")
         self.depths.append(depth)
-        if depth > .15:
-            # %%%%%%%%%%%%%%%%%%%%%%%%DEBUG
-            cv2.putText(image_ros, str(depth), (10, 30), 1, 2, (0, 0, 255))
-            self.debug.add_image(image_ros, "in_range", topic="in_range")
-            # %%%%%%%%%%%%%%%%%%%%%%%%DEBUG
+        # %%%%%%%%%%%%%%%%%%%%%%%%DEBUG
+        cv2.putText(image_ros, str(depth), (10, 30), 1, 2, (0, 0, 255))
+        self.debug.add_image(image_ros, "in_range", topic="in_range")
+        # %%%%%%%%%%%%%%%%%%%%%%%%DEBUG
+        if depth > .10:
             defer.returnValue(False)
-
-        # %%%%%%%%%%%%%%%%%%%%%%%%DEBUG
-        cv2.putText(image_ros, str(depth), (10, 30), 1, 2, (0, 255, 0))
-        self.debug.add_image(image_ros, "in_range1", topic="in_range")
-        # %%%%%%%%%%%%%%%%%%%%%%%%DEBUG
         defer.returnValue(True)
