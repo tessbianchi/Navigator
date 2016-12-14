@@ -107,6 +107,7 @@ class ScanTheCodeModel:
         fprint("color:{}".format(color), msg_color='green')
         # %%%%%%%%%%%%%%%%%%%%%%%%DEBUG
         fc = self.frame.copy()
+        cv2.rectangle(fc, (xmin, ymin), (xmax, ymax), (0, 0, 255), 2)
         cv2.putText(fc, color, (20, 20), 1, 2, (255, 0, 0))
         debug.add_image(fc, "adlj", topic="colors")
         if(self.prev_color is not None):
