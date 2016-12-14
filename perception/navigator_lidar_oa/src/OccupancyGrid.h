@@ -195,10 +195,14 @@ class OccupancyGrid
 			    Eigen::Vector2d am = b1 - point;
 			    //Valid lidar points are inside bounding box or within X meters of the boat
 		     	if( (0 <= ab.dot(am) && ab.dot(am) <= ab.dot(ab) && 0 <= am.dot(ac) && am.dot(ac) <= ac.dot(ac)) || (xyz_in_velodyne.norm() <= 15) ){
+		     		// std::cout << "THIS POINT IS in boudds!" <<std::endl;
 					if (xyz_in_velodyne.norm() >= LIDAR_MIN_VIEW_DISTANCE_METERS && xyz_in_velodyne.norm() <= 100 && xyz_in_enu(2) >= lidarPos.z-MAXIMUM_Z_BELOW_LIDAR && xyz_in_enu(2) <= lidarPos.z+MAXIMUM_Z_ABOVE_LIDAR) {
+						// std::cout << "fuck!" <<std::endl;
 						auto valid = xyz_in_velodyne.norm() < LIDAR_CONFIDENCE_DISTANCE_METERS && goodLidarReading == true;
 						updateGrid(LidarBeam(xyz_in_enu(0), xyz_in_enu(1),xyz_in_enu(2),i.f,valid),max_hits);
 					}
+		     	}else{
+		     		std::cout << "THIS POINT IS OUT OF THE BOUNDS!" <<std::endl;
 		     	}
 			}
 			++updateCounter;

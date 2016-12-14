@@ -14,14 +14,7 @@
     <node name="coordinate_converter" pkg="navigator_tools" type="coordinate_conversion_server.py"/>
     <node name="bounds_server" pkg="navigator_tools" type="bounds.py"/>
 
-    <rosparam param="bounds">
-    <!-- This is for Lake Wauberg -->
-    enforce: True
-    lla: [[29.535011, -82.303323],
-        [29.534647, -82.304280],
-        [29.533440, -82.303577],
-        [29.533803, -82.302639]]
-    </rosparam>
+    <node name="set_bounds" pkg="dynamic_reconfigure" type="dynparam" args="load /bounds_server $(find navigator_tools)/cfg/course_c.yaml -t 10" />
 
     <node name="stereo_right_proc" pkg="image_proc" type="image_proc" ns="/stereo/right" if="$(arg im_proc_sr)"/>
     <node name="stereo_left_proc" pkg="image_proc" type="image_proc" ns="/stereo/left" if="$(arg im_proc_sl)"/>

@@ -1,14 +1,5 @@
 !!python/object/new:dynamic_reconfigure.encoding.Config
 dictitems:
-  enforce: true
-  enu_1_lat: -5757673.240922884
-  enu_1_long: 1292407.2554583587
-  enu_2_lat: -5757621.281500475
-  enu_2_long: 1292417.5062531522
-  enu_3_lat: -5757588.157160948
-  enu_3_long: 1292575.1676970613
-  enu_4_lat: -5757640.116647392
-  enu_4_long: 1292564.9172413764
   groups: !!python/object/new:dynamic_reconfigure.encoding.Config
     dictitems:
       enforce: true
