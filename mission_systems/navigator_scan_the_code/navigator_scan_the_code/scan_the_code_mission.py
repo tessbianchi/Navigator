@@ -67,7 +67,7 @@ class ScanTheCodeMission:
                 scan_the_code = yield self._get_scan_the_code()
             except Exception:
                 print "Could not get scan the code..."
-                yield self.nh.sleep(.1)
+                yield self.nh.sleep(.01)
                 continue
 
             # try:
@@ -79,7 +79,7 @@ class ScanTheCodeMission:
             #     yield self.nh.sleep(.1)
             #     continue
 
-            yield self.nh.sleep(.3)
+            yield self.nh.sleep(.03)
         defer.returnValue(None)
 
     @txros.util.cancellableInlineCallbacks

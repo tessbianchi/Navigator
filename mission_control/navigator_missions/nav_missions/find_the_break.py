@@ -2,6 +2,7 @@
 import txros
 import numpy as np
 import sys
+import numpy.linalg as npl
 import navigator_tools as nt
 import sys
 import itertools
@@ -35,53 +36,61 @@ class FindTheBreak(object):
             perception = FindTheBreakTestPerception(nh)
         else:
             perception = yield FindTheBreakPerception(nh).init_()
-        dbhelper = yield DBHelper(nh).init_(navigator)
+        # dbhelper = yield DBHelper(nh).init_(navigator)
+
+        b1 = yield navigator.database_query()
+        b2 = yield navigator.database_query()
 
         fprint("STARTING FIND THE BREAK", msg_color="green")
-        # Get all objects within a certain radius of type unknown or buoy
-        nav_pos = yield navigator.tx_pose
-        nav_pos = nav_pos[0]
-        objects = yield dbhelper.get_objects_in_radius(nav_pos, radius, ["buoy", "unknown"])
-        if len(objects) < 2:
-            fprint("No objects in proximity", msg_color="red")
-            raise Exception("No objects in proximity")
+        # # Get all objects within a certain radius of type unknown or buoy
+        # nav_pos = yield navigator.tx_pose
+        # nav_pos = nav_pos[0]
+        # objects = yield dbhelper.get_objects_in_radius(nav_pos, radius, ["buoy", "unknown"])
+        # if len(objects) < 2:
+        #     fprint("No objects in proximity", msg_color="red")
+        #     raise Exception("No objects in proximity")
 
-        # Get all combinations and find the ones with the correct distance
-        objects_comb = itertools.combinations(objects, 2)
-        min_dist = sys.maxint
-        min_objs = None
-        for o in objects_comb:
-            dist = np.linalg.norm(nt.rosmsg_to_numpy(o[0].position) - nt.rosmsg_to_numpy(o[1].position))
-            if abs(dist - meters_between_buoys) < min_dist:
-                min_dist = dist
-                min_objs = o
+        # # Get all combinations and find the ones with the correct distance
+        # objects_comb = itertools.combinations(objects, 2)
+        # min_dist = sys.maxint
+        # min_objs = None
+        # for o in objects_comb:
+        #     dist = np.linalg.norm(nt.rosmsg_to_numpy(o[0].position) - nt.rosmsg_to_numpy(o[1].position))
+        #     if abs(dist - meters_between_buoys) < min_dist:
+        #         min_dist = dist
+        #         min_objs = o
 
-        fprint("Two objects appear to be the buoys you want, the difference is {} and the names are {}, {}".format(
-            min_dist, min_objs[0].name, min_objs[1].name), msg_color="blue")
+        # fprint("Two objects appear to be the buoys you want, the difference is {} and the names are {}, {}".format(
+        #     min_dist, min_objs[0].name, min_objs[1].name), msg_color="blue")
 
-        # Travel to one, look at the other
-        p1 = nt.rosmsg_to_numpy(min_objs[0].position)
-        p2 = nt.rosmsg_to_numpy(min_objs[1].position)
+        # # Travel to one, look at the other
+        p1 = nt.rosmsg_to_numpy(b1.position)
+        p2 = nt.rosmsg_to_numpy(b2.position)
 
-        yield navigator.move.set_position(p1).go()
-        yield navigator.move.look_at(p2).go()
+        dir_vec = (p2 - p1) / npl.norm(p2 - p1)
+        pos = p1 + dir_vec * 5
 
-        # Travel to other slowlys aysynchronously
-        move = navigator.move.set_position(p2).go(speed_factor=.5, initial_plan_time=5, move_type='skid')
-        move.addErrback(lambda x: x)
-        self.perception_defer = perception.count_pipes()
-        move.addCallback(self._end_move)
+        yield navigator.move.set_position(pos).look_at(p2).go()
+        yield navigator.move.look_at(p2).set_position(p2).go()
 
-        # Run perception return count, publish it
-        num = yield self.perception_defer
+        # # Travel to other slowlys aysynchronously
+        # move = navigator.move.set_position(p2).go(speed_factor=.5, initial_plan_time=5, move_type='skid')
+        # move.addErrback(lambda x: x)
+        # self.perception_defer = perception.count_pipes()
+        # move.addCallback(self._end_move)
+
+        # # Run perception return count, publish it
+        # num = yield self.perception_defer
+
+        num = 3
         fprint("NUMBER OF PIPES FOUND; {}".format(num), msg_color="green")
         if num > 0 and num < 6:
             yield navigator.mission_params["find_the_break_markers"].set(num)
         else:
             yield navigator.mission_params["find_the_break_markers"].set(3)
 
-        if not move.called:
-            move.cancel()
+        # if not move.called:
+        #     move.cancel()
 
         fprint("COMPLETED FIND THE BREAK", msg_color="green")
 

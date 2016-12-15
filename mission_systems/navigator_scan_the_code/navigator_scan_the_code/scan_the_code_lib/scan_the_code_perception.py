@@ -3,7 +3,8 @@ from __future__ import division
 from collections import deque
 from scanthecode_model_tracker import ScanTheCodeModelTracker
 from image_geometry import PinholeCameraModel
-from rect_finder import RectangleFinder
+from rect_finder_clustering import RectangleFinderClustering
+from color_finder import ColorFinder
 from twisted.internet import defer
 from cv_bridge import CvBridge, CvBridgeError
 import cv2
@@ -31,8 +32,9 @@ class ScanTheCodePerception(object):
         self.model_tracker = ScanTheCodeModelTracker()
         self.camera_model = PinholeCameraModel()
         self.my_tf = my_tf
+        self.rect_finder = RectangleFinderClustering()
+        self.color_finder = ColorFinder()
 
-        # %%%%%%%%%%%%debug%%%%%%%%%%%%%%%%
         self.count = 0
         self.depths = []
 
@@ -142,19 +144,11 @@ class ScanTheCodePerception(object):
 
     def _get_2d_points_stc(self, points_3d):
         xmin, ymin, zmin = self._get_top_left_point(points_3d)
-        ymin -= .05
-        xmin -= .1
 
-        points_3d = [[xmin, ymin, zmin], [xmin + .8, ymin + .75, zmin], [xmin, ymin + .75, zmin], [xmin + .8, ymin, zmin]]
+        points_3d = [[xmin, ymin, zmin], [xmin + .6, ymin + .75, zmin], [xmin, ymin + .75, zmin], [xmin + .6, ymin, zmin]]
 
         points_2d = map(lambda x: self.camera_model.project3dToPixel(x), points_3d)
         return points_2d
-
-    def _get_rectangle(self, img, bounding_rect):
-        xmin, ymin, xmax, ymax = bounding_rect
-        roi = img[ymin:ymax, xmin:xmax]
-        r = RectangleFinder()
-        return r.get_rectangle(roi, self.debug)
 
     def _get_bounding_rect(self, points_2d):
         xmin = 1000
@@ -203,45 +197,29 @@ class ScanTheCodePerception(object):
         image_clone = image.copy()
 
         points_3d = yield self._get_3d_points_stereo(scan_the_code.points, scan_the_code.header.stamp)
+        # points_2d = map(lambda x: self.camera_model.project3dToPixel(x), points_3d)
         points_2d = map(lambda x: self.camera_model.project3dToPixel(x), points_3d)
         for p in points_2d:
             po = (int(round(p[0])), int(round(p[1])))
             cv2.circle(image_clone, po, 2, (0, 255, 0), -1)
         points_2d = self._get_2d_points_stc(points_3d)
-        self.debug.add_image(image_clone, "bounding_box", topic="bounding_box")
 
         xmin, ymin, xmax, ymax = self._get_bounding_rect(points_2d)
         xmin, ymin, xmax, ymax = int(xmin), int(ymin), int(xmax), int(ymax)
 
-        cv2.rectangle(image_clone, (xmin, ymin), (xmax, ymax), (255, 0, 0), 2)
-
-        h, w, r = image.shape
-
-        if ymin == ymax or xmin == xmax or ymin < 0 or ymax > h or xmin < 0 or xmax > w:
-            defer.returnValue((False, None))
-
-        cv2.rectangle(image_clone, (xmin, ymin), (xmax, ymax), (255, 0, 0), 2)
+        cv2.rectangle(image_clone, (xmin, ymin), (xmax, ymax), (0, 255, 0), 2)
         self.debug.add_image(image_clone, "bounding_box", topic="bounding_box")
 
-        succ, rect = self._get_rectangle(image, (xmin, ymin, xmax, ymax))
-
+        roi = image[ymin:ymax, xmin:xmax]
+        succ, color_vec = self.rect_finder.get_rectangle(roi, self.debug)
         if not succ:
             defer.returnValue((False, None))
 
-        pnts = []
-        for p in rect:
-            p1 = p[0] + xmin
-            p2 = p[1] + ymin
-            pnts.append((int(p1), int(p2)))
-
-        self.mission_complete = self.model_tracker.update_model(image, pnts, self.debug)
-        if(self.mission_complete):
+        self.mission_complete, colors = self.color_finder.check_for_colors(image, color_vec, self.debug)
+        if self.mission_complete:
             print "MISSION COMPLETE"
-            defer.returnValue((True, self.model_tracker.colors))
-        else:
-            defer.returnValue((False, None))
-
-        yield True
+            defer.returnValue((True, colors))
+        defer.returnValue((False, None))
 
     @txros.util.cancellableInlineCallbacks
     def correct_pose(self, scan_the_code):
