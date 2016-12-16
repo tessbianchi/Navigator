@@ -3,10 +3,10 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //Critical global constants
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-double MAP_SIZE_METERS = 1800;
+double MAP_SIZE_METERS = 2100;
 double ROI_SIZE_METERS = 201;
 double VOXEL_SIZE_METERS = 0.30;
-int MIN_HITS_FOR_OCCUPANCY = 10; 
+int MIN_HITS_FOR_OCCUPANCY = 20; 
 int MAX_HITS_IN_CELL = 200; 
 int LIDAR_HITS_INCREMENT = 35;
 double MAXIMUM_Z_BELOW_LIDAR = 2.25; 
@@ -23,7 +23,7 @@ std::vector<std::string> ROIS = {"BuoyField","CoralSurvey","FindBreak","Acoustic
 double MIN_GATE_SEPERATION = 30;
 double MAX_GATE_SEPERATION = 50;
 double MAX_GATE_ERROR_METRIC = 15;
-int MIN_HITS_FOR_VOLUME = 15;
+int MIN_HITS_FOR_VOLUME = 31;
 int OBJECT_INFLATION_PARAMETER = 2;
 double VOXEL_SIZE_Z_METERS = 0.15;
 double VOXEL_SIZE_Z_MIN_HITS = 10;
@@ -63,7 +63,7 @@ void set_params(ros::NodeHandle& nh)
   nh.getParam("MIN_GATE_SEPERATION", MIN_GATE_SEPERATION);
   nh.getParam("MAX_GATE_SEPERATION", MIN_GATE_SEPERATION);
   nh.getParam("MAX_GATE_ERROR_METRIC", MAX_GATE_ERROR_METRIC);
-  nh.getParam("/lidar_ogrid_database/MIN_HITS_FOR_VOLUME",MIN_HITS_FOR_VOLUME);
+  nh.getParam("MIN_HITS_FOR_VOLUME",MIN_HITS_FOR_VOLUME);
   nh.getParam("OBJECT_INFLATION_PARAMETER", OBJECT_INFLATION_PARAMETER);
   nh.getParam("VOXEL_SIZE_Z_METERS", VOXEL_SIZE_Z_METERS);
   nh.getParam("VOXEL_SIZE_Z_MIN_HITS", VOXEL_SIZE_Z_MIN_HITS);

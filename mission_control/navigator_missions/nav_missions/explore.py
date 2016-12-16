@@ -43,12 +43,9 @@ def go_to_objects(navigator, position, objs):
 
 @txros.util.cancellableInlineCallbacks
 def myfunc(navigator, looking_for, center_marker):
-    high_prob_objs = ["shooter", "dock", "scan_the_code"]
+    high_prob_objs = ["shooter", "dock"]
     pos = yield navigator.tx_pose
     pos = pos[0]
-
-    if center_marker is None or center_marker == "None":
-        defer.returnValue(True)
 
     try:
         center_marker = yield navigator.database_query(object_name=center_marker)
@@ -76,7 +73,6 @@ def myfunc(navigator, looking_for, center_marker):
             defer.returnValue(True)
         except MissingPerceptionObject:
             fprint("The object {} is not in the database".format(looking_for), msg_color="red")
-            defer.returnValue(False)
     try:
         objs = yield navigator.database_query(object_name="all")
         objs = get_closest_objects(pos, objs.objects)

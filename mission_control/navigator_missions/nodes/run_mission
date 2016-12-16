@@ -23,7 +23,10 @@ def main():
                         help='This allow you to run test missions, rather than real mission.')
     args = parser.parse_args(args[1:])
 
-    mission_source = nav_missions
+    if args.test:
+        mission_source = nav_missions_test
+    else:
+        mission_source = nav_missions
 
     available_missions = [mission_name for mission_name in dir(mission_source) if mission_name[0] != '_']
 
@@ -42,10 +45,7 @@ def main():
     for mission in args.missions:
         to_run = getattr(mission_source, mission)
         fprint("Running Mission!\n", title="MISSION")
-        if args.test:
-            result = yield to_run.main(n, test=True)
-        else:
-            result = yield to_run.main(n)
+        result = yield to_run.main(n)
 
         if result is None:
             fprint("{} finished with no result.".format(mission), title="MISSION")

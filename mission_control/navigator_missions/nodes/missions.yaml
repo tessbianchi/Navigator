@@ -9,58 +9,23 @@
 
     
 
-scan_the_code:
-  marker_dep: "Shooter"
-  mission_dep: "pinger"
-  is_base: False
-  points: 100
-  min_time: 100
-  weight: 1
-  mission_script: "detect_deliver"
-  looking_for: "shooter"
+# scan_the_code:
+#   marker_dep: "Scan_The_Code"
+#   mission_dep: "None"
+#   is_base: False
+#   points: 100
+#   min_time: 1
+#   weight: 2
+#   looking_for: "scan_the_code"
   
 detect_deliver:
-  marker_dep: "Scan_The_Code"
-  mission_dep: "scan_the_code"
-  is_base: False
-  points: 100
-  min_time: 100
-  weight: 1
-  mission_script: "scan_the_code"
-  looking_for: "scan_the_code"
-
-explore:
-  marker_dep: "None"
+  marker_dep: "Shooter"
   mission_dep: "None"
-  is_base: True
+  is_base: False
   points: 100
   min_time: 1
   weight: 2
-  mission_script: "explore"
-  looking_for: "None"
-
-pinger:
-  marker_dep: "AcousticPinger"
-  mission_dep: "None"
-  is_base: False
-  points: 100
-  min_time: 100
-  weight: 1
-  mission_script: "pinger"
-  looking_for: "Gate1"
-
-pinger_exit:
-  marker_dep: "None"
-  mission_dep: "None"
-  is_base: False
-  points: 100
-  min_time: 100
-  weight: 1
-  mission_script: "pinger_exit"
-  looking_for: "Gate1"
-
-
-
+  looking_for: "shooter"
 
 # empty_start:
 #   marker_dep: "Dock"
@@ -80,7 +45,14 @@ pinger_exit:
 #   weight: 2
 #   looking_for: "tower"
 
-
+# pinger:
+#   marker_dep: "AcousticPinger"
+#   mission_dep: "empty_start"
+#   is_base: False
+#   points: 100
+#   min_time: 1
+#   weight: 2
+#   looking_for: "tower"
 
 # find_the_break:
 #   marker_dep: "FindBreak"
@@ -100,7 +72,14 @@ pinger_exit:
 #   weight: 2
 #   looking_for: "tower"
 
-
+explore:
+  marker_dep: "None"
+  mission_dep: "None"
+  is_base: True
+  points: 100
+  min_time: 1
+  weight: 2
+  looking_for: "None"
 
 
 

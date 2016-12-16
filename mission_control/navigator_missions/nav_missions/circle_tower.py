@@ -29,19 +29,11 @@ def main(navigator, **kwargs):
     all_found = False
 
     # Get colors of intrest and directions
-<<<<<<< HEAD
-    c1 = "BLUE" #navigator.mission_params['totem_color_1'].get()
-    c2 = "GREEN" #navigator.mission_params['totem_color_2'].get()
-    c2 = "BLUE" #navigator.mission_params['totem_color_3'].get()
+    c1 = navigator.mission_params['totem_color_1'].get()
+    c2 = navigator.mission_params['totem_color_2'].get()
+    c2 = navigator.mission_params['totem_color_3'].get()
     
     colors = [c1, c2]
-=======
-    c1 = "GREEN" #navigator.mission_params['totem_color_1'].get()
-    c2 = "BLUE" #navigator.mission_params['totem_color_2'].get()
-    c2 = "RED" #navigator.mission_params['totem_color_3'].get()
-    
-    colors = [c1, c2, c3]
->>>>>>> e54086e... TOTEMS: Hardcode values in for the day
 
     buoy_field = yield navigator.database_query("BuoyField")
     buoy_field_point = navigator_tools.point_to_numpy(buoy_field.objects[0].position)
