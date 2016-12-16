@@ -12,16 +12,17 @@ class ColorFinder:
     def __init__(self):
         """Initialize ScanTheCodeModel."""
         self.colors = []
+        self.black_count = 0
         self.prev_color = None
         self.curr_count = 0
-        self.K_H_LOW = 0
-        self.K_H_HIG = 25
+        self.K_H_LOW = 10
+        self.K_H_HIG = 40
         self.K_V_LOW = 100
-        self.K_V_HIG = 200
+        self.K_V_HIG = 230
 
         self.R_H_LOW = 0
-        self.R_H_HIG = 20
-        self.R_V_LOW = 200
+        self.R_H_HIG = 25
+        self.R_V_LOW = 230
         self.R_V_HIG = 255
 
         self.B_H_LOW = 100
@@ -61,29 +62,30 @@ class ColorFinder:
             h_sum += hue
             s_sum += sat
             v_sum += val
+            if hue < self.K_H_HIG and hue > self.K_H_LOW:
+                black_vote += 1
+            if hue < self.R_H_HIG and hue > self.R_H_LOW:
+                red_vote += 1
+            # elif hue < self.B_H_HIG and hue > self.K_H_LOW and avgv < self.K_V_HIG and avgv > self.K_V_LOW:
+            #     red_vote += 1
+            if hue < self.Y_H_HIG and hue > self.Y_H_LOW:
+                yellow_vote += 1
+            if hue < self.G_H_HIG and hue > self.G_H_LOW:
+                green_vote += 1
+            if hue < self.B_H_HIG and hue > self.B_H_LOW:
+                blue_vote += 1
+            if val < self.K_V_HIG and val > self.K_V_LOW:
+                black_vote += .5
+            if val < self.B_V_HIG and val > self.B_V_LOW:
+                blue_vote += .5
+            if val < self.R_V_HIG and val > self.R_V_LOW:
+                red_vote += .5
+            if val < self.G_V_HIG and val > self.G_V_LOW:
+                green_vote += .5
+            if val < self.Y_V_HIG and val > self.Y_V_LOW:
+                yellow_vote += .5
+
         avgh, avgs, avgv = np.round(h_sum / tot), np.round(s_sum / tot), np.round(v_sum / tot)
-        if avgh < self.K_H_HIG and avgh > self.K_H_LOW:
-            black_vote += 1
-        elif avgh < self.R_H_HIG and avgh > self.R_H_LOW:
-            red_vote += 1
-        # elif avgh < self.B_H_HIG and avgh > self.K_H_LOW and avgv < self.K_V_HIG and avgv > self.K_V_LOW:
-        #     red_vote += 1
-        elif avgh < self.Y_H_HIG and avgh > self.Y_H_LOW:
-            yellow_vote += 1
-        elif avgh < self.G_H_HIG and avgh > self.G_H_LOW:
-            green_vote += 1
-        elif avgh < self.B_H_HIG and avgh > self.B_H_LOW:
-            blue_vote += 1
-        elif avgv < self.K_V_HIG and avgv > self.K_V_LOW:
-            black_vote += .5
-        elif avgv < self.B_V_HIG and avgv > self.B_V_LOW:
-            blue_vote += .5
-        elif avgv < self.R_V_HIG and avgv > self.R_V_LOW:
-            red_vote += .5
-        elif avgv < self.G_V_HIG and avgv > self.G_V_LOW:
-            green_vote += .5
-        elif avgv < self.Y_V_HIG and avgv > self.Y_V_LOW:
-            yellow_vote += .5
 
         m = max(red_vote, black_vote, yellow_vote, green_vote, blue_vote)
 
@@ -122,8 +124,8 @@ class ColorFinder:
             self.curr_count += 1
 
         elif self.prev_color != color and self.prev_color != 'k':
-            # if self.curr_count > 0:
-            self.colors.append(self.prev_color)
+            if self.curr_count > 2:
+                self.colors.append(self.prev_color)
 
             self.curr_count = 0
 
@@ -134,6 +136,11 @@ class ColorFinder:
             return True, self.colors
 
         if color == 'k':
+            self.black_count += 1
+
+        if self.black_count == 3:
+            fprint("THREE BLACKS FOUND... CLEARING", msg_color="red")
+            self.black_count = 0
             self.prev_color = color
             self.colors = []
             return False, None

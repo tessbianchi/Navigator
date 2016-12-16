@@ -68,10 +68,11 @@ class FindTheBreak(object):
         p2 = nt.rosmsg_to_numpy(b2.position)
 
         dir_vec = (p2 - p1) / npl.norm(p2 - p1)
-        pos = p1 + dir_vec * 5
+        pos = p1 + dir_vec * 3
+        pos1 = p2 - dir_vec * 3
 
         yield navigator.move.set_position(pos).look_at(p2).go()
-        yield navigator.move.look_at(p2).set_position(p2).go()
+        yield navigator.move.look_at(p2).set_position(pos1).go()
 
         # # Travel to other slowlys aysynchronously
         # move = navigator.move.set_position(p2).go(speed_factor=.5, initial_plan_time=5, move_type='skid')
