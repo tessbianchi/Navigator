@@ -2,18 +2,21 @@
 from __future__ import division
 from collections import deque
 from scanthecode_model_tracker import ScanTheCodeModelTracker
+from collections import Counter
 from image_geometry import PinholeCameraModel
+import numpy.linalg as npl
 from rect_finder_clustering import RectangleFinderClustering
 from color_finder import ColorFinder
 from twisted.internet import defer
 from cv_bridge import CvBridge, CvBridgeError
 import cv2
 import txros
-import matplotlib.pyplot as plt
+import sensor_msgs.point_cloud2 as pc2
+from sensor_msgs.msg import PointCloud2, Image
 import sys
 import numpy as np
 import genpy
-from navigator_tools import fprint
+from navigator_tools import fprint, rosmsg_to_numpy
 
 ___author___ = "Tess Bianchi"
 
@@ -38,6 +41,12 @@ class ScanTheCodePerception(object):
         self.count = 0
         self.depths = []
 
+    @txros.util.cancellableInlineCallbacks
+    def _init(self):
+        self.vel_sub = yield self.nh.subscribe("/velodyne_points", PointCloud2)
+        self.image_sub = yield self.nh.subscribe("/stereo/right/image_rect_color", Image)
+        defer.returnValue(self)
+
     def add_image(self, image):
         """Add an image to the image cache."""
         if len(self.image_cache) > 50:
@@ -49,47 +58,6 @@ class ScanTheCodePerception(object):
         self.last_cam_info = info
         self.camera_model.fromCameraInfo(info)
 
-    def _convert_3d_2d(self, point):
-        K = self.last_cam_info.K
-        K = np.array(K).reshape(3, 3)
-        pl = point
-        pl = K.dot(pl)
-        if pl[2] == 0:
-            return (0, 0)
-        pl[0] /= pl[2]
-        pl[1] /= pl[2]
-        if pl[0] < 0:
-            pl[0] = 0
-        if pl[1] < 0:
-            pl[1] = 0
-        return(pl[0], pl[1])
-
-    @txros.util.cancellableInlineCallbacks
-    def _get_3d_points_stereo(self, points_3d_enu, time):
-        self.pers_points.extend(points_3d_enu)
-        max_num = 1000
-        if len(self.pers_points) > max_num:
-            self.pers_points = self.pers_points[len(self.pers_points) - max_num:len(self.pers_points)]
-
-        points_3d = []
-        try:
-            trans = yield self.my_tf.get_transform("/stereo_right_cam", "/enu", time)
-        except Exception as exp:
-            print exp
-            defer.returnValue(points_3d)
-
-        transformation = trans.as_matrix()
-        for point in self.pers_points:
-            p = [point.x, point.y, point.z, 1]
-            t_p = transformation.dot(p)
-            if t_p[3] < 1E-15:
-                raise ZeroDivisionError
-            t_p[0] /= t_p[3]
-            t_p[1] /= t_p[3]
-            t_p[2] /= t_p[3]
-            points_3d.append(t_p[0:3])
-        defer.returnValue(points_3d)
-
     def _get_top_left_point(self, points_3d):
         xmin = sys.maxint
         zmin = -sys.maxint
@@ -100,7 +68,7 @@ class ScanTheCodePerception(object):
                 zmin = point[2]
                 ymin = point[1]
 
-        buff = .2
+        buff = 1
         for i, point in enumerate(points_3d):
             if(point[1] < ymin + buff and point[1] > ymin - buff and point[0] < xmin):
                 xmin = point[0]
@@ -143,18 +111,27 @@ class ScanTheCodePerception(object):
         return max_val - min_val
 
     def _get_2d_points_stc(self, points_3d):
-        xmin, ymin, zmin = self._get_top_left_point(points_3d)
+        # xmin, ymin, zmin = self._get_top_left_point(points_3d)
+        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
+        points_3d = np.float32(points_3d)
+        ret, label, centers = cv2.kmeans(np.array(points_3d), 2, criteria, 10, 0)
+        data = Counter(label.flatten())
+        max_label = data.most_common(1)[0][0]
+        c = centers[max_label]
+        xmin, ymin, zmin = c[0], c[1], c[2]
 
-        points_3d = [[xmin, ymin, zmin], [xmin + .6, ymin + .75, zmin], [xmin, ymin + .75, zmin], [xmin + .6, ymin, zmin]]
+        points_3d = [[xmin - .3, ymin - .3, zmin], [xmin + .3, ymin + .3, zmin],
+                     [xmin - .3, ymin + .3, zmin], [xmin + .3, ymin - .3, zmin]]
 
         points_2d = map(lambda x: self.camera_model.project3dToPixel(x), points_3d)
         return points_2d
 
-    def _get_bounding_rect(self, points_2d):
-        xmin = 1000
-        xmax = 0
-        ymin = 1000
-        ymax = 0
+    def _get_bounding_rect(self, points_2d, img):
+        xmin = np.inf
+        xmax = -np.inf
+        ymin = np.inf
+        ymax = -np.inf
+        h, w, r = img.shape
         for i, point in enumerate(points_2d):
             if(point[0] < xmin):
                 xmin = point[0]
@@ -164,51 +141,88 @@ class ScanTheCodePerception(object):
                 ymax = point[1]
             if(point[1] < ymin):
                 ymin = point[1]
+        if xmin < 0:
+            xmin = 1
+        if ymin < 0:
+            ymin = 1
+        if xmax > w:
+            xmax = w - 1
+        if ymax > h:
+            ymax = h - 1
         return xmin, ymin, xmax, ymax
 
-    def _get_closest_image(self, time):
-        min_idx = None
-        min_diff = genpy.Duration(sys.maxint)
-        for i, img in enumerate(self.image_cache):
-            diff = abs(time - img.header.stamp)
-            if diff < min_diff:
-                min_diff = diff
-                min_idx = i
-        j = self.image_cache[min_idx]
+    @txros.util.cancellableInlineCallbacks
+    def get_stc_points(self, msg, stc_pos):
+        trans = yield self.my_tf.get_transform("/stereo_right_cam", "/velodyne", msg.header.stamp)
+        trans1 = yield self.my_tf.get_transform("/stereo_right_cam", "/enu", msg.header.stamp)
+        stc_pos = rosmsg_to_numpy(stc_pos)
+        stc_pos = np.append(stc_pos, 1)
+        position = trans1.as_matrix().dot(stc_pos)
+        if position[3] < 1E-15:
+            raise ZeroDivisionError
+        position[0] /= position[3]
+        position[1] /= position[3]
+        position[2] /= position[3]
+        position = position[:3]
 
-        n = -20
-        if min_idx + n > 0:
-            j = self.image_cache[min_idx + n]
-        return j
+        stereo_points = []
+        for point in pc2.read_points(msg, skip_nans=True):
+            stereo_points.append(np.array([point[0], point[1], point[2], 1]))
+        stereo_points = map(lambda x: trans.as_matrix().dot(x), stereo_points)
+        points = []
+        for p in stereo_points:
+            if p[3] < 1E-15:
+                raise ZeroDivisionError
+            p[0] /= p[3]
+            p[1] /= p[3]
+            p[2] /= p[3]
+            points.append(p[:3])
+
+        points_keep = []
+        for p in points:
+            # print npl.norm(p - poition)
+            if npl.norm(p - position) < 20:
+                points_keep.append(p)
+        points_keep = sorted(points_keep, key=lambda x: x[1])
+        keep_num = int(.1 * len(points_keep))
+        points_keep = points_keep[:keep_num]
+        self.pers_points.extend(points_keep)
+        max_num = 200
+        if len(self.pers_points) > max_num:
+            self.pers_points = self.pers_points[len(self.pers_points) - max_num:len(self.pers_points)]
+
+        defer.returnValue(self.pers_points)
 
     @txros.util.cancellableInlineCallbacks
     def search(self, scan_the_code):
         """Search for the colors in the scan the code object."""
-        if len(self.image_cache) == 0:
-            print "No images"
-            defer.returnValue((False, None))
-        image_ros = self._get_closest_image(scan_the_code.header.stamp)
+        pntcloud = yield self.vel_sub.get_next_message()
+        image_ros = yield self.image_sub.get_next_message()
         try:
             image = self.bridge.imgmsg_to_cv2(image_ros, "bgr8")
         except CvBridgeError:
             print "Trouble converting image"
             defer.returnValue((False, None))
 
+        points_3d = yield self.get_stc_points(pntcloud, scan_the_code.position)
+
         image_clone = image.copy()
 
-        points_3d = yield self._get_3d_points_stereo(scan_the_code.points, scan_the_code.header.stamp)
+        # points_3d = yield self._get_3d_points_stereo(scan_the_code.points, image_ros.header.stamp)
         # points_2d = map(lambda x: self.camera_model.project3dToPixel(x), points_3d)
         points_2d = map(lambda x: self.camera_model.project3dToPixel(x), points_3d)
         for p in points_2d:
             po = (int(round(p[0])), int(round(p[1])))
             cv2.circle(image_clone, po, 2, (0, 255, 0), -1)
-        points_2d = self._get_2d_points_stc(points_3d)
 
-        xmin, ymin, xmax, ymax = self._get_bounding_rect(points_2d)
+        points_2d = self._get_2d_points_stc(points_3d)
+        xmin, ymin, xmax, ymax = self._get_bounding_rect(points_2d, image)
         xmin, ymin, xmax, ymax = int(xmin), int(ymin), int(xmax), int(ymax)
 
         cv2.rectangle(image_clone, (xmin, ymin), (xmax, ymax), (0, 255, 0), 2)
         self.debug.add_image(image_clone, "bounding_box", topic="bounding_box")
+
+        # defer.returnValue((False, None))
 
         print xmin, ymin, xmax, ymax
         roi = image[ymin:ymax, xmin:xmax]
@@ -226,33 +240,13 @@ class ScanTheCodePerception(object):
     def correct_pose(self, scan_the_code):
         """Check to see if we are looking at the corner of scan the code."""
         self.count += 1
-        # %%%%%%%%%%%%%%%%%%%%%%%%DEBUG
-        # if self.count == 100:
-        #     xs = np.arange(0, len(self.depths))
-        #     ys = self.depths
-        #     plt.plot(xs, ys)
-        #     plt.show()
-        # %%%%%%%%%%%%%%%%%%%%%%%%DEBUG
-
         points_3d = yield self._get_3d_points_stereo(scan_the_code.points, self.nh.get_time())
         xmin, ymin, zmin = self._get_top_left_point(points_3d)
         points_oi = self._get_points_in_range('y', ymin - .1, ymin + .2, points_3d)
         if len(points_oi) == 0:
             defer.returnValue(False)
 
-        # %%%%%%%%%%%%%%%%%%%%%%%%DEBUG
-        image_ros = self._get_closest_image(scan_the_code.header.stamp)
-        count = 0
-        while image_ros is None:
-            yield self.nh.sleep(.5)
-            image_ros = self._get_closest_image(scan_the_code.header.stamp)
-            yield self.nh.sleep(.3)
-            count += 1
-            if count == 20:
-                print "no images"
-                defer.returnValue(False)
-        # %%%%%%%%%%%%%%%%%%%%%%%%DEBUG
-
+        image_ros = yield self.image_sub.get_next_message()
         image_ros = self.bridge.imgmsg_to_cv2(image_ros, "bgr8").copy()
 
         depth = self._get_depth('z', points_oi)

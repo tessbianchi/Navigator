@@ -15,28 +15,31 @@ class ColorFinder:
         self.black_count = 0
         self.prev_color = None
         self.curr_count = 0
-        self.K_H_LOW = 10
-        self.K_H_HIG = 40
-        self.K_V_LOW = 100
-        self.K_V_HIG = 230
+        self.K_H_LOW = 0
+        self.K_H_HIG = 5
+        self.K_V_LOW = 0
+        self.K_V_HIG = 20
 
         self.R_H_LOW = 0
-        self.R_H_HIG = 25
+        self.R_H_HIG = 20
+        self.R_H_LOW2 = 160
+        self.R_H_HIG2 = 180
+
         self.R_V_LOW = 230
         self.R_V_HIG = 255
 
         self.B_H_LOW = 100
-        self.B_H_HIG = 120
+        self.B_H_HIG = 140
         self.B_V_LOW = 100
         self.B_V_HIG = 200
 
-        self.G_H_LOW = 40
-        self.G_H_HIG = 55
+        self.G_H_LOW = 41
+        self.G_H_HIG = 90
         self.G_V_LOW = 100
         self.G_V_HIG = 200
 
         self.Y_H_LOW = 20
-        self.Y_H_HIG = 60
+        self.Y_H_HIG = 40
         self.Y_V_LOW = 200
         self.Y_V_HIG = 255
 
@@ -58,13 +61,15 @@ class ColorFinder:
         for c in hsv:
             tot += 1
             c = c.flatten()
-            hue, sat, val = c[0], c[1], c[2]
+            val, sat, hue = c[0], c[1], c[2]
             h_sum += hue
             s_sum += sat
             v_sum += val
-            if hue < self.K_H_HIG and hue > self.K_H_LOW:
-                black_vote += 1
+            # if hue < self.K_H_HIG and hue > self.K_H_LOW:
+            #     black_vote += 1
             if hue < self.R_H_HIG and hue > self.R_H_LOW:
+                red_vote += 1
+            if hue < self.R_H_HIG2 and hue > self.R_H_LOW2:
                 red_vote += 1
             # elif hue < self.B_H_HIG and hue > self.K_H_LOW and avgv < self.K_V_HIG and avgv > self.K_V_LOW:
             #     red_vote += 1
@@ -74,20 +79,21 @@ class ColorFinder:
                 green_vote += 1
             if hue < self.B_H_HIG and hue > self.B_H_LOW:
                 blue_vote += 1
-            if val < self.K_V_HIG and val > self.K_V_LOW:
-                black_vote += .5
-            if val < self.B_V_HIG and val > self.B_V_LOW:
-                blue_vote += .5
-            if val < self.R_V_HIG and val > self.R_V_LOW:
-                red_vote += .5
-            if val < self.G_V_HIG and val > self.G_V_LOW:
-                green_vote += .5
-            if val < self.Y_V_HIG and val > self.Y_V_LOW:
-                yellow_vote += .5
+            # if val < self.K_V_HIG and val > self.K_V_LOW:
+            #     black_vote += .5
+            # if val < self.B_V_HIG and val > self.B_V_LOW:
+            #     blue_vote += .5
+            # if val < self.R_V_HIG and val > self.R_V_LOW:
+            #     red_vote += .5
+            # if val < self.G_V_HIG and val > self.G_V_LOW:
+            #     green_vote += .5
+            # if val < self.Y_V_HIG and val > self.Y_V_LOW:
+            #     yellow_vote += .5
 
         avgh, avgs, avgv = np.round(h_sum / tot), np.round(s_sum / tot), np.round(v_sum / tot)
-
         m = max(red_vote, black_vote, yellow_vote, green_vote, blue_vote)
+        if np.round(s_sum / tot) == 0.0:
+            m = -1
 
         fprint("Average H {}".format(avgh), msg_color="green")
         fprint("Average S {}".format(avgs), msg_color="green")
@@ -101,7 +107,7 @@ class ColorFinder:
             color = 'y'
         if green_vote == m:
             color = 'g'
-        if black_vote == m:
+        if -1 == m:
             color = 'k'
         cv2.putText(draw, "{}: {}: {}: {}".format(color, avgh, avgs, avgv), (20, 20), 1, 2, (255, 0, 0))
         # img = np.repeat(image, 20, axis=0)
@@ -120,11 +126,12 @@ class ColorFinder:
             self.prev_color = color
             return False, None
 
+        print 'count', self.curr_count
         if self.prev_color == color:
             self.curr_count += 1
 
         elif self.prev_color != color and self.prev_color != 'k':
-            if self.curr_count > 2:
+            if self.curr_count > 0 and (len(self.colors) == 0 or self.colors[len(self.colors) - 1] != self.prev_color):
                 self.colors.append(self.prev_color)
 
             self.curr_count = 0

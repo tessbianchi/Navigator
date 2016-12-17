@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 import numpy.ma as ma
 import numpy.linalg as npl
+from navigator_tools import fprint
 # from skimage importmeasure
 import scipy.ndimage.measurements as mes
 ___author___ = "Tess Bianchi"
@@ -16,14 +17,12 @@ class RectangleFinderClustering(object):
         """Initialize RectangleFinder class."""
         # PARAMS HERE
         self.change_thresh = 30
-
-        self.prev_kmeans = None
-        self.current_center = None
-        self.seen_black = False
-        self.color_finder = None  # ColorFinder()
         self.colors = []
 
         self.ys = []
+        self.count_incorrect = 0
+        self.count = 0
+        self.K = 7
 
     def _get_lw(self, box):
         p0 = box[0]
@@ -62,17 +61,26 @@ class RectangleFinderClustering(object):
 
         Returns boolean success value and the four rectangle points in the image
         """
-        gaussian = cv2.GaussianBlur(roi, (9, 9), 10.0)
-        roi = cv2.addWeighted(roi, 1.5, gaussian, -0.5, 0, roi)
+        gaussian = cv2.GaussianBlur(roi, (15, 15), 50.0)
+
+        gaussian = cv2.medianBlur(gaussian, 201)
+        # roi = cv2.addWeighted(roi, 1.5, gaussian, -0.5, 0, roi)
 
         nh, nw, r = roi.shape
+        self.count += 1
 
         # cluster
         Z = roi.reshape((-1, 3))
         Z = np.float32(Z)
+        fprint("K" + str(self.K), msg_color='green')
         criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
-        K = 7
-        ret, label, centers = cv2.kmeans(Z, K, criteria, 10, 0)
+        if self.count_incorrect / self.count > .15 and self.count > 20 and self.K > 3:
+            fprint("CHANGED KMEANS VALUES!!!!!!!", msg_color="red")
+            self.K -= 1
+            self.count = 0
+            self.count_incorrect = 0
+
+        ret, label, centers = cv2.kmeans(Z, self.K, criteria, 10, 0)
         centers = np.uint8(centers)
         image_as_centers = centers[label.flatten()]
         image_as_centers = image_as_centers.reshape((roi.shape))
@@ -80,12 +88,14 @@ class RectangleFinderClustering(object):
 
         debug.add_image(image_as_centers, "labels", topic="labels")
 
-        possible_clusters = list(np.arange(K))
+        possible_clusters = list(np.arange(self.K))
         whiteness = map(lambda x: npl.norm(x - np.array([255, 255, 255])), centers)
         whitest = np.argmin(whiteness)
         possible_clusters.remove(whitest)
         energys = []
         correct_masks = []
+        # cv2.imshow("labeks", image_as_centers)
+        # cv2.waitKey(0)
         for num, p in enumerate(possible_clusters):
             mask_clusters = ma.masked_equal(labels, p)
 
@@ -101,6 +111,9 @@ class RectangleFinderClustering(object):
             draw_mask = mask_obj.mask.astype(np.uint8)
             draw_mask *= 255
 
+            # cv2.imshow(str(num), draw_mask)
+            # cv2.waitKey(0)
+
             top = np.count_nonzero(draw_mask)
             valz = np.fliplr(np.transpose(draw_mask.nonzero()))
             rect = cv2.minAreaRect(valz)
@@ -110,7 +123,6 @@ class RectangleFinderClustering(object):
             cv2.drawContours(rect_mask, [box], 0, 255, -1)
             bottom = np.count_nonzero(rect_mask)
 
-            # cv2.imshow("hi
             l, w, vcost = self._get_lw(box)
             if w < .001:
                 print 'WIDTH TOO SMALL'
@@ -141,6 +153,7 @@ class RectangleFinderClustering(object):
             correct_masks.append(mask_obj)
 
         if len(energys) == 0:
+            self.count_incorrect += 1
             print "EVERY ENERGY WRONG"
             return False, None
 
@@ -148,6 +161,7 @@ class RectangleFinderClustering(object):
         energys = sorted(energys, reverse=True)
 
         if len(energys) > 1 and abs(energys[0] - energys[1]) < .2:
+            self.count_incorrect += 1
             print "TOO CLOSE TO CALLS"
             return False, None
 
