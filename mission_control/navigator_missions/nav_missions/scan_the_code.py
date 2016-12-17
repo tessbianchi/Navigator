@@ -40,7 +40,6 @@ def main(navigator, **kwargs):
     # yield mission.correct_pose()
     # circle.cancel()
 
-    # This is the one that we are using!
     mission.correct_pose(pose)
     circle = navigator.move.d_circle_point(look_at, radius=8, granularity=30, direction='cw')
     # print list(circle)
