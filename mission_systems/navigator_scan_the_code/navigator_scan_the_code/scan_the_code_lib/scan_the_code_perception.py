@@ -240,7 +240,8 @@ class ScanTheCodePerception(object):
     def correct_pose(self, scan_the_code):
         """Check to see if we are looking at the corner of scan the code."""
         self.count += 1
-        points_3d = yield self._get_3d_points_stereo(scan_the_code.points, self.nh.get_time())
+        pntcloud = yield self.vel_sub.get_next_message()
+        points_3d = yield self.get_stc_points(pntcloud, scan_the_code.position)
         xmin, ymin, zmin = self._get_top_left_point(points_3d)
         points_oi = self._get_points_in_range('y', ymin - .1, ymin + .2, points_3d)
         if len(points_oi) == 0:

@@ -22,7 +22,7 @@ class RectangleFinderClustering(object):
         self.ys = []
         self.count_incorrect = 0
         self.count = 0
-        self.K = 7
+        self.K = 2
 
     def _get_lw(self, box):
         p0 = box[0]
@@ -75,7 +75,7 @@ class RectangleFinderClustering(object):
         fprint("K" + str(self.K), msg_color='green')
         criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
         if self.count_incorrect / self.count > .15 and self.count > 20 and self.K > 3:
-            fprint("CHANGED KMEANS VALUES!!!!!!!", msg_color="red")
+            fprint("CHANGED KMEANS VALUES!", msg_color="red")
             self.K -= 1
             self.count = 0
             self.count_incorrect = 0
@@ -94,8 +94,13 @@ class RectangleFinderClustering(object):
         possible_clusters.remove(whitest)
         energys = []
         correct_masks = []
-        # cv2.imshow("labeks", image_as_centers)
-        # cv2.waitKey(0)
+
+        # whitest = ma.masked_equal(labels, whitest)
+        # draw_mask = whitest.mask.astype(np.uint8)
+        # draw_mask *= 255
+        # debug.add_image(draw_mask, 'whitest', topic="whitest")
+        # cv2.imshow("whitest", whitest)
+        # cv2.waitKey(33)
         for num, p in enumerate(possible_clusters):
             mask_clusters = ma.masked_equal(labels, p)
 
