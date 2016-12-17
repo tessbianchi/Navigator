@@ -14,8 +14,8 @@ import rospy
 ___author___ = "Kevin Allen"
 
 class PingerExitMission:
-    OBSERVE_DISTANCE_METERS = 5
-    GATE_CROSS_METERS = 5
+    OBSERVE_DISTANCE_METERS = 6
+    GATE_CROSS_METERS = 7
     FREQ = 35000
     LISTEN_TIME = 10
     MAX_CIRCLE_BUOY_ERROR = 30
@@ -41,25 +41,25 @@ class PingerExitMission:
 
         self.gate_poses = np.array([gate_1_pos, gate_2_pos, gate_3_pos])
 
+    @txros.util.cancellableInlineCallbacks
     def set_side(self):
         """Set 2 points to observe the pinger from, in front of gates 1 and 3"""
         self.get_gate_perp()
         #Make sure they are actually in a line
         if np.isnan(self.g_perp[0]) or np.isnan(self.g_perp[1]):
             raise Exception("Gates are not in a line")
-        pose = self.navigator.pose[0][:2]
-        distance_test = np.array([np.linalg.norm(pose - (self.gate_poses[self.gate_index] + self.OBSERVE_DISTANCE_METERS * self.g_perp)),
-                                  np.linalg.norm(pose - (self.gate_poses[self.gate_index] - self.OBSERVE_DISTANCE_METERS * self.g_perp))])
-        if np.argmin(distance_test) == 1:
-            self.negate = True
+        neg = yield self.navigator.mission_params["pinger_negate"].get()
+        self.negate = not neg
 
     @txros.util.cancellableInlineCallbacks
     def go_thru_gate(self):
         """Move to the points needed to go through the correct gate"""
-        self.gate_index = np.argmin(self.distances)
+        #self.gate_index = np.argmin(self.distances)
         self.get_gate_thru_points()
-        for p in self.gate_thru_points:
-            yield self.navigator.move.set_position(p).go(initial_plan_time=5)
+        yield self.navigator.move.set_position(self.gate_thru_points[0]).look_at(self.gate_thru_points[1]).go()
+        yield self.navigator.move.set_position(self.gate_thru_points[1]).go()
+        #for p in self.gate_thru_points:
+        #    yield self.navigator.move.set_position(p).go(initial_plan_time=5)
 
     def get_gate_perp(self):
         """Calculate a perpendicular to the line formed by the three gates"""
@@ -83,7 +83,8 @@ class PingerExitMission:
     @txros.util.cancellableInlineCallbacks
     def run(self):
         fprint("PINGER EXIT: Starting", msg_color='green') 
-        self.gate_index = yield navigator.mission_params["acoustic_pinger_active_index"].get()
+        self.gate_index = yield self.navigator.mission_params["acoustic_pinger_active_index"].get()
+        self.gate_index = self.gate_index - 1
         yield self.get_objects()
         yield self.set_side()
         self.get_gate_thru_points()
@@ -92,6 +93,7 @@ class PingerExitMission:
 
 @txros.util.cancellableInlineCallbacks
 def main(navigator, **kwargs):
+    print "running pinger"
     mission = PingerExitMission(navigator)
     yield mission.run()
 

@@ -210,6 +210,7 @@ class ScanTheCodePerception(object):
         cv2.rectangle(image_clone, (xmin, ymin), (xmax, ymax), (0, 255, 0), 2)
         self.debug.add_image(image_clone, "bounding_box", topic="bounding_box")
 
+        print xmin, ymin, xmax, ymax
         roi = image[ymin:ymax, xmin:xmax]
         succ, color_vec = self.rect_finder.get_rectangle(roi, self.debug)
         if not succ:

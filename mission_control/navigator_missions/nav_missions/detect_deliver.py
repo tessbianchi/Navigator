@@ -17,13 +17,13 @@ from navigator_tools import fprint, MissingPerceptionObject
 import genpy
 
 class DetectDeliverMission:
-    shoot_distance_meters = 3.1
+    shoot_distance_meters = 2.65
     theta_offset = np.pi / 2.0
     spotings_req = 1
     circle_radius = 10
     platform_radius = 0.925
     search_timeout_seconds = 300
-    SHAPE_CENTER_TO_BIG_TARGET = 0.42
+    SHAPE_CENTER_TO_BIG_TARGET = 0.32
     SHAPE_CENTER_TO_SMALL_TARGET = -0.42
     NUM_BALLS = 4
     LOOK_AT_TIME = 5
@@ -90,7 +90,7 @@ class DetectDeliverMission:
         done_circle = False
         @txros.util.cancellableInlineCallbacks
         def do_circle():
-            yield self.navigator.move.circle_point(platform_np).go()
+            yield self.navigator.move.circle_point(platform_np, direction='cw').go()
             done_circle = True
 
         circle_defer = do_circle()
@@ -197,7 +197,7 @@ class DetectDeliverMission:
         move = self.navigator.move.set_position(goal_point).set_orientation(goal_orientation).forward(self.target_offset_meters)
         move = move.left(-self.shooter_baselink_tf._p[1]).forward(-self.shooter_baselink_tf._p[0]) #Adjust for location of shooter
         fprint("Aligning to shoot at {}".format(move), title="DETECT DELIVER", msg_color='green')
-        move_complete = yield move.go(move_type="drive")
+        move_complete = yield move.go(move_type="skid", blind=True)
         defer.returnValue(move_complete)
 
     def get_shape(self):
@@ -251,21 +251,19 @@ class DetectDeliverMission:
             shooter_pose = shooter_pose.pose
 
             cen = np.array([shooter_pose.position.x, shooter_pose.position.y])
-            ori = trns.euler_from_quaternion([shooter_pose.orientation.x,
+            yaw = trns.euler_from_quaternion([shooter_pose.orientation.x,
                                               shooter_pose.orientation.y,
                                               shooter_pose.orientation.z,
                                               shooter_pose.orientation.w])[2]
-            q = trns.quaternion_from_euler(0, 0, ori)
+            q = trns.quaternion_from_euler(0, 0, yaw)
 
+            #  v_downrange = np.array([np.cos(ori), np.sin(ori)])
+            #  v_crossrange = np.array([-np.sin(ori), np.cos(ori)])
 
-            v_downrange = np.array([np.cos(ori), np.sin(ori)])
-            v_crossrange = np.array([-np.sin(ori), np.cos(ori)])
-
-
-            p = cen + v_downrange + v_crossrange
-            p = np.concatenate([p, [0]])
-
-            print p
+            #  p = cen + v_downrange + v_crossrange
+            #  p = np.concatenate([p, [0]])
+            p = np.append(cen,0)
+            fprint("Aligning to p=[{}] q=[{}]".format(p, q), title="DETECT DELIVER",  msg_color='green')
 
             #Prepare move to follow shooter
             move = self.navigator.move.set_position(p).set_orientation(q).yaw_right(90, 'deg')
@@ -280,29 +278,53 @@ class DetectDeliverMission:
             move = move.left(self.shoot_distance_meters)
 
             yield move.go(move_type='bypass')
+            #  yield move.go()
       except Exception:
         traceback.print_exc()
         raise
+
+    @txros.util.cancellableInlineCallbacks
+    def shoot_and_align_forest(self):
+        move = yield self.align_to_target()
+        if move.failure_reason != "":
+            fprint("Error Aligning with target = {}. Ending mission :(".format(move.failure_reason), title="DETECT DELIVER", msg_color="red")
+            return
+        fprint("Aligned successs. Shooting while using forest realign", title="DETECT DELIVER", msg_color="green")
+        align_defer = self.continuously_align()
+        fprint("Sleeping for 2 seconds to allow for alignment", title="DETECT DELIVER", msg_color="green")
+        yield self.navigator.nh.sleep(10)
+        yield self.shoot_all_balls()
+        align_defer.cancel()
+
+    @txros.util.cancellableInlineCallbacks
+    def shoot_and_align(self):
+        move = yield self.align_to_target()
+        if move.failure_reason != "":
+            fprint("Error Aligning with target = {}. Ending mission :(".format(move.failure_reason), title="DETECT DELIVER", msg_color="red")
+            return
+        fprint("Aligned successs. Shooting without realignment", title="DETECT DELIVER", msg_color="green")
+        yield self.shoot_all_balls()
 
     @txros.util.cancellableInlineCallbacks
     def find_and_shoot(self):
         self.shooter_baselink_tf = yield self.navigator.tf_listener.get_transform('/base_link','/shooter')
         yield self.navigator.vision_proxies["get_shape"].start()
         yield self.set_shape_and_color()  # Get correct goal shape/color from params
-        yield self.get_waypoint()  # Get waypoint of shooter target
-        yield self.circle_search()  # Go to waypoint and circle until target found
-        move = yield self.align_to_target()
-        if move.failure_reason == "":
-            yield self.shoot_all_balls()
-        else:
-            fprint("Error Aligning with target = {}. Ending mission :(".format(move.failure_reason), title="DETECT DELIVER", msg_color="red")
+        yield self.get_waypoint()         # Get waypoint of shooter target
+        yield self.circle_search()        # Go to waypoint and circle until target found
+        #  yield self.shoot_and_align()      # Align to target and shoot
+        yield self.shoot_and_align_forest()      # Align to target and shoot
         yield self.navigator.vision_proxies["get_shape"].stop()
 
 @txros.util.cancellableInlineCallbacks
 def setup_mission(navigator):
-    stc_color = yield navigator.mission_params["scan_the_code_color3"].get()
-    shape = "ANY"
-    color = stc_color
+    #stc_color = yield navigator.mission_params["scan_the_code_color3"].get(raise_exception=False)
+    #if stc_color == False:
+    #    color = "ANY"
+    #else:
+    #    color = stc_color
+    color = "ANY"
+    shape = "CROSS"
     fprint("Setting search shape={} color={}".format(shape, color), title="DETECT DELIVER",  msg_color='green')
     yield navigator.mission_params["detect_deliver_shape"].set(shape)
     yield navigator.mission_params["detect_deliver_color"].set(color)
